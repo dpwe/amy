@@ -1,5 +1,6 @@
 #include "amy.h"
 #include "sine_lutset.h"
+#include "sine_lutset_fxpt.h"
 #include "impulse_lutset.h"
 #include "triangle_lutset.h"
 
@@ -123,6 +124,32 @@ float render_lut(float * buf, float step, float skip, float incoming_amp, float 
         step += skip;
         if(step >= lut_size) step -= lut_size;
     }
+    return step;
+}
+
+float render_lut_fxpt(float * buf, float step, float skip, float incoming_amp, float ending_amp, const SAMPTYPE* lut, int32_t lut_size) { 
+    // We assume lut_size == 2^R for some R, so (lut_size - 1) consists of R '1's in binary.
+    int lut_mask = lut_size - 1;
+    int32_t fxpt_step = (int32_t)(round((1 << 16) * step));
+    int32_t fxpt_skip = (int32_t)(round((1 << 16) * skip));
+    int32_t amp0 = (int32_t)(round((1 << 16) * incoming_amp));
+    int32_t amp1 = (int32_t)(round((1 << 16) * ending_amp));
+    for(uint16_t i=0;i<BLOCK_SIZE;i++) {
+        // Floor is very slow on the esp32, so we just cast. Dan told me to add this comment. -- baw
+        //uint16_t base_index = (uint16_t)floor(step);
+        uint32_t base_index = fxpt_step >> 16;
+        int32_t frac = fxpt_step - (base_index << 16);
+        SAMPTYPE b = lut[(base_index + 0) & lut_mask];
+        SAMPTYPE c = lut[(base_index + 1) & lut_mask];
+        // linear interpolation.
+        SAMPTYPE sample = b + (((c - b) * frac) >> 16);
+        int32_t scaled_amp = amp0 + ((amp1 - amp0) * i) / BLOCK_SIZE;
+        buf[i] += ((float)((sample * scaled_amp) >> 16)) / (float)(1 << 15);
+
+        fxpt_step += fxpt_skip;
+        if(fxpt_step >= (lut_size << 16)) fxpt_step -= (lut_size << 16);
+    }
+    step = fxpt_step / (1 << 16);
     return step;
 }
 
@@ -437,8 +464,10 @@ void partial_note_off(uint8_t osc) {
 void render_sine(float * buf, uint8_t osc) { 
 
     float skip = msynth[osc].freq / (float)SAMPLE_RATE * synth[osc].lut_size;
-    synth[osc].step = render_lut(buf, synth[osc].step, skip, synth[osc].last_amp, msynth[osc].amp, 
-                 synth[osc].lut, synth[osc].lut_size);
+    //synth[osc].step = render_lut(buf, synth[osc].step, skip, synth[osc].last_amp, msynth[osc].amp, 
+    //             synth[osc].lut, synth[osc].lut_size);
+    synth[osc].step = render_lut_fxpt(buf, synth[osc].step, skip, synth[osc].last_amp, msynth[osc].amp, 
+                                      sine_fxpt_lutable_0, 256);    
     synth[osc].last_amp = msynth[osc].amp;
     //fprintf(stderr,"sysclock %lld amp %f buffer in middle is %f\n", amy_sysclock(), msynth[osc].amp, buf[128]);
 }

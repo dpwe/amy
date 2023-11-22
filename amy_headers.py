@@ -19,6 +19,7 @@ def generate_amy_pcm_header(sample_set, name, pcm_sample_rate=22050):
     my_sample_counter = 0
     orig_map = {}
     for (fn, is_inst) in fns:
+        try:
             sf2 = Sf2File(open(fn, 'rb'))
         except:
             print("For PCM patches, download the sf2 files first. See comment in amy_headers.generate_amy_pcm_header()")
@@ -211,6 +212,54 @@ def write_lutset_to_h(filename, variable_base, lutset):
     print("wrote", filename)
 
 
+def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
+    """Savi out a lutset as a C-compatible header file using ints."""
+    num_luts = len(lutset)
+    with open(filename, "w") as f:
+        f.write("// Automatically-generated LUTset\n")
+        f.write("#ifndef LUTSET_{:s}_FXPT_DEFINED\n".format(variable_base.upper()))
+        f.write("#define LUTSET_{:s}_FXPT_DEFINED\n".format(variable_base.upper()))
+        f.write("\n")
+        # Define the structure.
+        f.write("#ifndef LUTENTRY_FXPT_DEFINED\n")
+        f.write("#define LUTENTRY_FXPT_DEFINED\n")
+        f.write("typedef int16_t SAMPTYPE;\n");
+        f.write("typedef struct {\n")
+        f.write("    const SAMPTYPE *table;\n")
+        f.write("    int table_size;\n")
+        f.write("    int highest_harmonic;\n")
+        f.write("} lut_entry_fxpt;\n")
+        f.write("#endif // LUTENTRY_FXPT_DEFINED\n")
+        f.write("\n")
+        # Define the content of the individual tables.
+        samples_per_row = 8
+        for i in range(num_luts):
+            table_size = len(lutset[i].table)
+            f.write("const SAMPTYPE {:s}_fxpt_lutable_{:d}[{:d}] = {{\n".format(
+                variable_base, i, table_size))
+            for row_start in range(0, table_size, samples_per_row):
+                for sample_index in range(row_start, 
+                        min(row_start + samples_per_row, table_size)):
+                    f.write("{:d},".format(min(32767, max(-32768, int(round(32768 * lutset[i].table[sample_index]))))))
+                f.write("\n")
+            f.write("};\n")
+            f.write("\n")
+        # Define the table of LUTs.
+        f.write("lut_entry_fxpt {:s}_fxpt_lutset[{:d}] = {{\n".format(
+            variable_base, num_luts + 1))
+        for i in range(num_luts):
+            f.write("    {{{:s}_fxpt_lutable_{:d}, {:d}, {:d}}},\n".format(
+                variable_base, i, len(lutset[i].table), 
+                lutset[i].highest_harmonic))
+        # Final entry is null to indicate end of table.
+        f.write("    {NULL, 0, 0},\n")
+        f.write("};\n")
+        f.write("\n")
+        f.write("#endif // LUTSET_x_DEFINED\n")
+    print("wrote", filename)
+
+
+
 
 def make_clipping_lut(filename):
     import numpy as np
@@ -270,6 +319,8 @@ def generate_all():
     # Sinusoid "lutset" (only one table)
     sine_lutset = create_lutset(LUTentry, np.array([0, 1]),  harmonic_phases = -np.pi / 2 * np.ones(2), length_factor=256)
     write_lutset_to_h('src/sine_lutset.h', 'sine', sine_lutset)
+    write_lutset_to_h_as_fxpt('src/sine_lutset_fxpt.h', 'sine', sine_lutset)
+                
 
     # Clipping LUT
     make_clipping_lut('src/clipping_lookup_table.h')

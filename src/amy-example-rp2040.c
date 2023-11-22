@@ -110,31 +110,18 @@ int main() {
     struct event e = amy_default_event();
     int64_t start = amy_sysclock();
     e.time = start;
-    e.velocity = 0.25;
+    e.velocity = 0.1;
     e.wave = SINE;
     e.patch = 15;
-    e.midi_note = 70;
-    amy_add_event(e);
 
-    e.time = start + 500;
-    e.osc += 9; // remember that an FM patch takes up 9 oscillators
-    e.midi_note = 64;
-    amy_add_event(e);
+    int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84};
 
-    e.time = start + 1000;
-    e.osc += 9;
-    e.midi_note = 68;
-    amy_add_event(e);
-
-    e.time = start + 1500;
-    e.osc += 9;
-    e.midi_note = 72;
-    amy_add_event(e);
-
-    e.time = start + 2000;
-    e.osc += 9;
-    e.midi_note = 58;
-    amy_add_event(e);
+    for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
+        e.osc += 1;
+        e.midi_note = notes[i];
+        amy_add_event(e);
+        e.time += 500;
+    }
 
 /*
     uint32_t step = 0x200000;
@@ -142,7 +129,7 @@ int main() {
     uint32_t pos_max = 0x10000 * SINE_WAVE_TABLE_LEN;
     uint vol = 16;
 */
-    while (true) {
+    for (int i = 0; i < 2000; ++i) {
         rp2040_fill_audio_buffer(ap);
     }
 
