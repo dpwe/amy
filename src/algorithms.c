@@ -79,9 +79,6 @@ struct FmAlgorithm algorithms[33] = {
 };
 // End of MSFA stuff
 
-SAMPLE zeros[BLOCK_SIZE];
-
-
 // a = 0
 void zero(SAMPLE* a) {
     for(uint16_t i=0;i<BLOCK_SIZE;i++) {
@@ -107,6 +104,7 @@ void copy(SAMPLE* a, SAMPLE* b) {
 void render_mod(SAMPLE *in, SAMPLE* out, uint8_t osc, SAMPLE feedback_level, uint8_t algo_osc) {
 
     hold_and_modify(osc);
+    printf("render_mod: osc %d msynth.amp %f\n", osc, S2F(msynth[osc].amp));
 
     // out = buf
     // in = mod
@@ -153,12 +151,12 @@ void algo_setup_patch(uint8_t osc) {
     synth[osc+7].freq = p.lfo_freq * time_ratio;
     synth[osc+7].wave = p.lfo_wave;
     synth[osc+7].status = IS_MOD_SOURCE;
-    synth[osc+7].amp = p.lfo_amp_amp;
+    synth[osc+7].amp = F2S(p.lfo_amp_amp);
     // pitch LFO
     synth[osc+8].freq = p.lfo_freq * time_ratio;
     synth[osc+8].wave = p.lfo_wave;
     synth[osc+8].status = IS_MOD_SOURCE;
-    synth[osc+8].amp = p.lfo_pitch_amp;
+    synth[osc+8].amp = F2S(p.lfo_pitch_amp);
 
 
     float last_release_time= 0;
@@ -170,7 +168,7 @@ void algo_setup_patch(uint8_t osc) {
         if(synth[osc+i+1].freq < 0) synth[osc+i+1].freq = 0;
         synth[osc+i+1].status = IS_ALGO_SOURCE;
         synth[osc+i+1].ratio = op.freq_ratio;
-        synth[osc+i+1].amp = op.amp;
+        synth[osc+i+1].amp = F2S(op.amp);
         synth[osc+i+1].breakpoint_target[0] = TARGET_AMP+TARGET_DX7_EXPONENTIAL;
         synth[osc+i+1].phase = 0.25;
         synth[osc+i+1].mod_target = op.lfo_target;
@@ -214,7 +212,6 @@ void algo_note_on(uint8_t osc) {
 }
 
 void algo_init() {
-    for(uint16_t i=0;i<BLOCK_SIZE;i++) zeros[i] = 0;
 }
 
 
@@ -250,7 +247,7 @@ void render_algo(SAMPLE* buf, uint8_t osc) {
                 in_buf = scratch[1]; 
             } else {
                 // no in_buf
-                in_buf = zeros;
+                in_buf = NULL;
             }
 
             if(!(algo.ops[op] & OUT_BUS_ADD)) {

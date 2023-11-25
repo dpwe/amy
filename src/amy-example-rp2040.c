@@ -126,35 +126,41 @@ int main() {
     // Play a few notes in FM
     struct event e = amy_default_event();
     int64_t start = amy_sysclock();
+    int osc_inc;
     e.time = start;
     e.osc = 0;
-    //e.velocity = 0.1;
-    //e.wave = ALGO;
-    //e.patch = 15;
 
-    e.wave = SAW_DOWN;
-    e.filter_freq = 2500.0;
-    e.resonance = 5.0;
-    e.filter_type = FILTER_LPF;
-    e.breakpoint_target[0] = TARGET_FILTER_FREQ;
+    e.wave = ALGO;
+    e.patch = 15;
+    osc_inc = 9;
+    
+    //e.wave = SAW_DOWN;
+    //e.filter_freq = 2500.0;
+    //e.resonance = 5.0;
+    //e.filter_type = FILTER_LPF;
+    //e.breakpoint_target[0] = TARGET_FILTER_FREQ;
+    //osc_inc = 1;
+    
     //e.breakpoint_target[0] = TARGET_AMP;
-    //amy_add_event(e);
 
     //int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
     int notes[] = {60, 70, 64, 68};
-    //int notes[] = {60};
+    //int notes[] = {72};
 
     //e = amy_default_event();
-    e.velocity = 0.05;
+    e.velocity = 0.3;
 
     // amy.send(osc=0, bp0="1000,0.2,200,0")
     char bp0msg[] = "v0A0,1,1000,0.01,200,0\0";
     for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
-        e.osc += 1;
-        bp0msg[1] = '0' + e.osc;
-        amy_play_message(bp0msg);
+        // Don't setup the EG when using FM voices.
+        if (osc_inc == 1 && e.osc < 10) {
+            bp0msg[1] = '0' + e.osc;
+            amy_play_message(bp0msg);
+        }
         e.midi_note = notes[i];
         amy_add_event(e);
+        e.osc += osc_inc;
         e.time += 500;
     }
 
@@ -164,7 +170,7 @@ int main() {
     uint32_t pos_max = 0x10000 * SINE_WAVE_TABLE_LEN;
     uint vol = 16;
 */
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 2000; ++i) {
         rp2040_fill_audio_buffer(ap);
     }
 
