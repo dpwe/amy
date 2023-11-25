@@ -497,7 +497,7 @@ void hold_and_modify(uint8_t osc) {
     SAMPLE all_set_scale = 0;
     for(uint8_t i=0;i<MAX_BREAKPOINT_SETS;i++) {
         SAMPLE scale = compute_breakpoint_scale(osc, i);
-        if (scale != F2S(1.0f)) printf("osc %d scale %f\n", osc, S2F(scale));
+        //if (scale != F2S(1.0f)) printf("osc %d scale %f\n", osc, S2F(scale));
         if(synth[osc].breakpoint_target[i] & TARGET_AMP) msynth[osc].amp = MUL4_SS(msynth[osc].amp, scale);
         if(synth[osc].breakpoint_target[i] & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty * S2F(scale);
         if(synth[osc].breakpoint_target[i] & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq * S2F(scale);
@@ -679,6 +679,13 @@ void parse_algorithm(struct event * e, char *message) {
 
 }
 
+void print_bpset(struct event* e, uint8_t which_bpset) {
+    printf("bpset %d:\n", which_bpset);
+    for (int i = 0; i < MAX_BREAKPOINTS; ++i) {
+        printf("  t: %d  v: %f\n", e->breakpoint_times[which_bpset][i], e->breakpoint_values[which_bpset][i]);
+    }
+}
+
 // Helper to parse the special bp string
 void parse_breakpoint(struct event * e, char* message, uint8_t which_bpset) {
     uint8_t idx = 0;
@@ -703,6 +710,7 @@ void parse_breakpoint(struct event * e, char* message, uint8_t which_bpset) {
         while(message[c]!=',' && message[c]!=0 && c < MAX_MESSAGE_LEN) c++;
         c++; idx++;
     }
+    print_bpset(e, which_bpset);
 }
 
 // given a string return an event

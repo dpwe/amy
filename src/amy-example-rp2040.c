@@ -127,15 +127,32 @@ int main() {
     struct event e = amy_default_event();
     int64_t start = amy_sysclock();
     e.time = start;
-    e.velocity = 0.1;
-    e.wave = SINE;
-    e.patch = 15;
+    e.osc = 0;
+    //e.velocity = 0.1;
+    //e.wave = ALGO;
+    //e.patch = 15;
 
-    int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
-    //int notes[] = {60, 70, 64, 68};
+    e.wave = SAW_DOWN;
+    //e.filter_freq = 2500.0;
+    //e.resonance = 5.0;
+    //e.filter_type = FILTER_LPF;
+    //e.breakpoint_target[0] = TARGET_FILTER_FREQ;
+    e.breakpoint_target[0] = TARGET_AMP;
+    //amy_add_event(e);
 
+    //int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
+    int notes[] = {60, 70, 64, 68};
+    //int notes[] = {60};
+
+    //e = amy_default_event();
+    e.velocity = 0.2;
+
+    // amy.send(osc=0, bp0="1000,0.2,200,0")
+    char bp0msg[] = "v0A0,1,1000,0.2,200,0\0";
     for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
         e.osc += 1;
+        bp0msg[1] = '0' + e.osc;
+        amy_play_message(bp0msg);
         e.midi_note = notes[i];
         amy_add_event(e);
         e.time += 500;
@@ -147,7 +164,7 @@ int main() {
     uint32_t pos_max = 0x10000 * SINE_WAVE_TABLE_LEN;
     uint vol = 16;
 */
-    for (int i = 0; i < 3000; ++i) {
+    for (int i = 0; i < 1000; ++i) {
         rp2040_fill_audio_buffer(ap);
     }
 
@@ -174,6 +191,13 @@ int main() {
     puts("\n");
     */
 
+    while(true) {
+        gpio_put(LED_PIN, 1);
+        sleep_ms(250);
+
+        gpio_put(LED_PIN, 0);
+        sleep_ms(250);
+    }
     return 0;
 }
 

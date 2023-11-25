@@ -68,17 +68,17 @@ typedef int32_t s8_23;  // s8.23 sample
 // Convert a PHASOR to a SAMPLE
 #define P2S(p) ((p) >> (P_FRAC_BITS - S_FRAC_BITS))
 // Convert a LUTSAMPLE (s.15) to a SAMPLE (s8.23)
-#define L2S(l) (((int32_t)l) << (S_FRAC_BITS - L_FRAC_BITS))
+#define L2S(l) (((int32_t)(l)) << (S_FRAC_BITS - L_FRAC_BITS))
 // L is also the format used in the final output.
-#define S2L(s) (s >> (S_FRAC_BITS - L_FRAC_BITS))
+#define S2L(s) ((s) >> (S_FRAC_BITS - L_FRAC_BITS))
 
 // Convert between SAMPLE and float
-#define S2F(s) ((float)s / (float)(1 << S_FRAC_BITS))
-#define F2S(f) (SAMPLE)(f * (float)(1 << S_FRAC_BITS))
+#define S2F(s) ((float)(s) / (float)(1 << S_FRAC_BITS))
+#define F2S(f) (SAMPLE)((f) * (float)(1 << S_FRAC_BITS))
 
 // Convert between PHASOR and float
-#define P2F(s) ((float)s / (float)(1 << P_FRAC_BITS))
-#define F2P(f) (PHASOR)(f * (float)(1 << P_FRAC_BITS))
+#define P2F(s) ((float)(s) / (float)(1 << P_FRAC_BITS))
+#define F2P(f) (PHASOR)((f) * (float)(1 << P_FRAC_BITS))
 
 // Fixed-point multiply routines
 
@@ -97,13 +97,13 @@ typedef int32_t s8_23;  // s8.23 sample
 #define MUL4_SP_S(s, p) FXMUL_TEMPLATE(s, p, 11, 16, P_FRAC_BITS)  // need to lose 31 bits; 11+16=27, so 4 more on result
 
 // Regard PHASOR as index into B-bit table, return integer (floor) index, strip sign bit.
-#define INT_OF_P(P, B) (int32_t)(((uint32_t)(P << 1) >> (P_FRAC_BITS + 1 - B)))
+#define INT_OF_P(P, B) (int32_t)(((uint32_t)((P) << 1) >> (P_FRAC_BITS + 1 - (B))))
 // Fractonal part of phasor within B bits, returns a SAMPLE.
 // Add 1 to B shift-up and cast to uint32_t to strip sign bit, pad a zero sign bit on way down.
-#define S_FRAC_OF_P(P, B) (int32_t)(((uint32_t)((P << (B + 1)))) >> (1 + P_FRAC_BITS - S_FRAC_BITS))
+#define S_FRAC_OF_P(P, B) (int32_t)(((uint32_t)(((P) << ((B) + 1)))) >> (1 + P_FRAC_BITS - S_FRAC_BITS))
 
 // Increment phasor but wrap at +1.0
-#define P_WRAPPED_SUM(P, I) (int32_t)(((uint32_t)((P + I) << 1)) >> 1)
+#define P_WRAPPED_SUM(P, I) (int32_t)(((uint32_t)(((P) + (I)) << 1)) >> 1)
 
 // Fixed-point lookup table structure (copied from e.g. sine_lutset_fxpt.h).
 #ifndef LUTENTRY_FXPT_DEFINED

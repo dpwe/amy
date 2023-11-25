@@ -31,6 +31,7 @@ SAMPLE compute_mod_scale(uint8_t osc) {
 }
 
 SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
+
     // given a breakpoint list, compute the scale
     // we first see how many BPs are defined, and where we are in them?
     int8_t found = -1;
@@ -110,10 +111,10 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
     }
 
     t1 = synth[osc].breakpoint_times[bp_set][found]; 
-    v1 = synth[osc].breakpoint_values[bp_set][found];
+    v1 = F2S(synth[osc].breakpoint_values[bp_set][found]);
     if(found>0 && bp_r != found && !release) {
         t0 = synth[osc].breakpoint_times[bp_set][found-1];
-        v0 = synth[osc].breakpoint_values[bp_set][found-1]; 
+        v0 = F2S(synth[osc].breakpoint_values[bp_set][found-1]);
     }
     SAMPLE scale = v0;
     if(t1 < 0 || v1 < 0) {
@@ -126,11 +127,11 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
         float time_ratio = ((float)(elapsed - t0) / (float)(t1 - t0));
         // Compute scale based on which type we have
         if(synth[osc].breakpoint_target[bp_set] & TARGET_LINEAR) {
-            scale = v0 + MUL4_SS(v1-v0, F2S(time_ratio));
+            scale = v0 + MUL4_SS(v1 - v0, F2S(time_ratio));
         } else if(synth[osc].breakpoint_target[bp_set] & TARGET_TRUE_EXPONENTIAL) {
             v0 = MAX(v0, F2S(BREAKPOINT_EPS));
             v1 = MAX(v1, F2S(BREAKPOINT_EPS));
-            float dx7_exponential_rate = -logf(v1/v0) / (t1 - t0);
+            float dx7_exponential_rate = -logf(S2F(v1)/S2F(v0)) / (t1 - t0);
             scale = MUL4_SS(v0, F2S(expf(-dx7_exponential_rate * (elapsed - t0))));
         } else if(synth[osc].breakpoint_target[bp_set] & TARGET_DX7_EXPONENTIAL) {
             // Somewhat complicated relationship, see https://colab.research.google.com/drive/1qZmOw4r24IDijUFlel_eSoWEf3L5VSok#scrollTo=F5zkeACrOlum
@@ -139,8 +140,8 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
 #define MIN_LEVEL 34
 #define ATTACK_RANGE 75
 #define MAP_ATTACK_LEVEL(level) (1 - MAX(level - MIN_LEVEL, 0) / ATTACK_RANGE)
-            float mapped_current_level = MAP_ATTACK_LEVEL(LINEAR_TO_DX7_LEVEL(v0));
-            float mapped_target_level = MAP_ATTACK_LEVEL(LINEAR_TO_DX7_LEVEL(v1));
+            float mapped_current_level = MAP_ATTACK_LEVEL(LINEAR_TO_DX7_LEVEL(S2F(v0)));
+            float mapped_target_level = MAP_ATTACK_LEVEL(LINEAR_TO_DX7_LEVEL(S2F(v1)));
             float t_const = (t1 - t0) / logf(mapped_current_level / mapped_target_level);
             float my_t0 = -t_const * logf(mapped_current_level);
             if (v1 > v0) {
@@ -150,15 +151,19 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
                 // Decay is regular true_exponential
                 v0 = MAX(v0, F2S(BREAKPOINT_EPS));
                 v1 = MAX(v1, F2S(BREAKPOINT_EPS));
-                float dx7_exponential_rate = -logf(v1/v0) / (t1 - t0);
+                float dx7_exponential_rate = -logf(S2F(v1)/S2F(v0)) / (t1 - t0);
                 scale = MUL4_SS(v0, F2S(expf(-dx7_exponential_rate * (elapsed - t0))));
             }
         } else { // "false exponential?"
             scale = v0 + MUL4_SS(v1 - v0, F2S(1.0 - expf(-exponential_rate * time_ratio)));
+            //float scf = 1.0 - expf(-exponential_rate * time_ratio);
+            //scale = v0 - MUL4_SS(v0 - v1, F2S(scf));
+            //printf("false_exponential time_ratio %f scf %f\n", time_ratio, scf);
         }
     }
     // Keep track of the most-recently returned non-release scale.
     if (!release) synth[osc].last_scale[bp_set] = scale;
+    printf("t0 %d t1 %d elapsed %lld v0 %f v1 %f scale %f\n", t0, t1, elapsed, S2F(v0), S2F(v1), S2F(scale));
     return scale;
 }
 
