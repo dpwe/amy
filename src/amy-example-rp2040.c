@@ -94,17 +94,34 @@ int main() {
 
     stdio_init_all();
 
-    printf("Clock is set to %d\n", clock_get_hz(clk_sys));
     set_sys_clock_khz(250000000 / 1000, false); //
 
+    sleep_ms(500);
+
+    printf("Clock is set to %d\n", clock_get_hz(clk_sys));
+
     amy_start();
+
+    const uint LED_PIN = PICO_DEFAULT_LED_PIN;
+    gpio_init(LED_PIN);
+    gpio_set_dir(LED_PIN, GPIO_OUT);
+    {
+        gpio_put(LED_PIN, 1);
+        printf("Clock is set to %d\n", clock_get_hz(clk_sys));
+        printf("LED ON !\n");
+        sleep_ms(250);
+
+        gpio_put(LED_PIN, 0);
+        printf("LED OFF !\n");
+        sleep_ms(250);
+    }
+
     /*
     for (int i = 0; i < SINE_WAVE_TABLE_LEN; i++) {
         sine_wave_table[i] = 32767 * cosf(i * 2 * (float) (M_PI / SINE_WAVE_TABLE_LEN));
     }
     */
     struct audio_buffer_pool *ap = init_audio();
-
 
     // Play a few notes in FM
     struct event e = amy_default_event();
@@ -114,7 +131,8 @@ int main() {
     e.wave = SINE;
     e.patch = 15;
 
-    int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84};
+    int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
+    //int notes[] = {60, 70, 64, 68};
 
     for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
         e.osc += 1;
@@ -129,7 +147,7 @@ int main() {
     uint32_t pos_max = 0x10000 * SINE_WAVE_TABLE_LEN;
     uint vol = 16;
 */
-    for (int i = 0; i < 2000; ++i) {
+    for (int i = 0; i < 3000; ++i) {
         rp2040_fill_audio_buffer(ap);
     }
 

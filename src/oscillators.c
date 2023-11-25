@@ -63,8 +63,11 @@ PHASOR render_lut_fm_osc(SAMPLE* buf,
                          SAMPLE* mod, SAMPLE feedback_level, SAMPLE* last_two) { 
     int lut_mask = lut->table_size - 1;
     int lut_bits = lut->log_2_table_size;
-    SAMPLE past0 = last_two[0];
-    SAMPLE past1 = last_two[1];
+    SAMPLE past0 = 0, past1 = 0;
+    if(last_two) {  // Only for FM oscillators.
+        past0 = last_two[0];
+        past1 = last_two[1];
+    }
     SAMPLE current_amp = incoming_amp;
     SAMPLE incremental_amp = (ending_amp - incoming_amp) >> BLOCK_SIZE_BITS; // i.e. delta(amp) / BLOCK_SIZE
     for(uint16_t i = 0; i < BLOCK_SIZE; i++) {
@@ -83,8 +86,10 @@ PHASOR render_lut_fm_osc(SAMPLE* buf,
         past1 = past0;
         past0 = sample;   // Feedback is taken before output scaling.
     }
-    last_two[0] = past0;
-    last_two[1] = past1;
+    if(last_two) {
+        last_two[0] = past0;
+        last_two[1] = past1;
+    }
     return phase;
 }
 
