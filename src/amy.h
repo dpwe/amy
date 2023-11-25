@@ -15,7 +15,10 @@
 #define PCM_LARGE 2
 #define PCM_SMALL 1
 #define PCM_PATCHES_SIZE PCM_SMALL
+//
 #define BLOCK_SIZE 256       // buffer block size in samples
+#define BLOCK_SIZE_BITS 8    // log_2(BLOCK_SIZE)
+//
 #define KS_OSCS 1            // # of Karplus-strong oscillators allowed at once, they're big RAM users so keep it small on esp
 #define EVENT_FIFO_LEN 3000  // number of events the queue can store
 #define MAX_DRIFT_MS 20000   // ms of time you can schedule ahead before synth recomputes time base
@@ -97,6 +100,7 @@ typedef int amy_err_t;
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #endif
 
+#include "amy_fixedpoint.h"
 
 enum params{
     WAVE, PATCH, MIDI_NOTE, AMP, DUTY, FEEDBACK, FREQ, VELOCITY, PHASE, DETUNE, VOLUME, FILTER_FREQ, RATIO, RESONANCE, 
@@ -127,17 +131,17 @@ struct event {
     int16_t wave;
     int16_t patch;
     int16_t midi_note;
-    float amp;
+    SAMPLE amp;
     float duty;
-    float feedback;
+    SAMPLE feedback;
     float freq;
     uint8_t status;
     float velocity;
-    float phase;
+    PHASOR phase;
     float detune;
-    float step;
-    float substep;
-    float sample;
+    //float step;
+    //float substep;
+    SAMPLE sample;
     float volume;
     int16_t latency_ms;
     float filter_freq;
@@ -154,34 +158,33 @@ struct event {
     int16_t breakpoint_target[MAX_BREAKPOINT_SETS];
     int32_t breakpoint_times[MAX_BREAKPOINT_SETS][MAX_BREAKPOINTS];
     float breakpoint_values[MAX_BREAKPOINT_SETS][MAX_BREAKPOINTS];
-    float last_scale[MAX_BREAKPOINT_SETS];  // remembers current envelope level, to use as start point in release.
+    SAMPLE last_scale[MAX_BREAKPOINT_SETS];  // remembers current envelope level, to use as start point in release.
   
     // State variable for the impulse-integrating oscs.
-    float lpf_state;
+    SAMPLE lpf_state;
     // Constant offset to add to sawtooth before integrating.
-    float dc_offset;
+    SAMPLE dc_offset;
     // Decay alpha of LPF filter (e.g. 0.99 or 0.999).
-    float lpf_alpha;
+    SAMPLE lpf_alpha;
     // amplitude smoother
-    float last_amp;
+    SAMPLE last_amp;
     // Selected lookup table and size.
-    const float *lut;
-    int16_t lut_size;
+    const LUT *lut;
     float eq_l;
     float eq_m;
     float eq_h;
     // For ALGO feedback ops
-    float last_two[2];
+    SAMPLE last_two[2];
 };
 
 // events, but only the things that mods/env can change. one per osc
 struct mod_event {
-    float amp;
+    SAMPLE amp;
     float duty;
     float freq;
     float filter_freq;
     float resonance;
-    float feedback;
+    SAMPLE feedback;
 };
 
 
@@ -202,8 +205,8 @@ void amy_decrease_volume();
 struct state {
     float volume;
     // State of fixed dc-blocking HPF
-    float hpf_state;
-    float eq[3];
+    SAMPLE hpf_state;
+    SAMPLE eq[3];
     uint16_t event_qsize;
     int16_t next_event_write;
     struct delta * event_start; // start of the sorted list
@@ -211,8 +214,8 @@ struct state {
 };
 
 // Shared structures
-extern float coeffs[OSCS][5];
-extern float delay[OSCS][2];
+extern SAMPLE coeffs[OSCS][5];
+extern SAMPLE delay[OSCS][2];
 extern int64_t total_samples;
 extern struct event *synth;
 extern struct mod_event *msynth; // the synth that is being modified by modulations & envelopes
@@ -237,37 +240,26 @@ void amy_live_stop();
 void amy_reset_oscs();
 void amy_print_devices(); 
 
-
-extern float render_am_lut(float * buf, float step, float skip, float incoming_amp, float ending_amp, const float* lut, int16_t lut_size, float *mod, float bandwidth);
-extern void ks_init();
-extern void ks_deinit();
 extern void algo_init();
 extern void pcm_init();
-extern void render_ks(float * buf, uint8_t osc); 
-extern void render_sine(float * buf, uint8_t osc); 
-extern void render_fm_sine(float *buf, uint8_t osc, float *mod, float feedback_level, uint8_t algo_osc);
-extern void render_pulse(float * buf, uint8_t osc); 
-extern void render_saw_down(float * buf, uint8_t osc);
-extern void render_saw_up(float * buf, uint8_t osc);
-extern void render_triangle(float * buf, uint8_t osc); 
-extern void render_noise(float * buf, uint8_t osc); 
-extern void render_pcm(float * buf, uint8_t osc);
-extern void render_algo(float * buf, uint8_t osc) ;
-extern void render_partial(float *buf, uint8_t osc) ;
-extern void partials_note_on(uint8_t osc);
-extern void partials_note_off(uint8_t osc);
-extern void render_partials(float *buf, uint8_t osc);
+extern void render_sine(SAMPLE * buf, uint8_t osc); 
+extern void render_fm_sine(SAMPLE *buf, uint8_t osc, SAMPLE *mod, SAMPLE feedback_level, uint8_t algo_osc);
+extern void render_pulse(SAMPLE * buf, uint8_t osc); 
+extern void render_saw_down(SAMPLE * buf, uint8_t osc);
+extern void render_saw_up(SAMPLE * buf, uint8_t osc);
+extern void render_triangle(SAMPLE * buf, uint8_t osc); 
+extern void render_noise(SAMPLE * buf, uint8_t osc); 
+extern void render_pcm(SAMPLE * buf, uint8_t osc);
+extern void render_algo(SAMPLE * buf, uint8_t osc) ;
 
-extern float compute_mod_pulse(uint8_t osc);
-extern float compute_mod_noise(uint8_t osc);
-extern float compute_mod_sine(uint8_t osc);
-extern float compute_mod_saw_up(uint8_t osc);
-extern float compute_mod_saw_down(uint8_t osc);
-extern float compute_mod_triangle(uint8_t osc);
-extern float compute_mod_pcm(uint8_t osc);
+extern SAMPLE compute_mod_pulse(uint8_t osc);
+extern SAMPLE compute_mod_noise(uint8_t osc);
+extern SAMPLE compute_mod_sine(uint8_t osc);
+extern SAMPLE compute_mod_saw_up(uint8_t osc);
+extern SAMPLE compute_mod_saw_down(uint8_t osc);
+extern SAMPLE compute_mod_triangle(uint8_t osc);
+extern SAMPLE compute_mod_pcm(uint8_t osc);
 
-extern void ks_note_on(uint8_t osc); 
-extern void ks_note_off(uint8_t osc);
 extern void sine_note_on(uint8_t osc); 
 extern void fm_sine_note_on(uint8_t osc, uint8_t algo_osc); 
 extern void saw_down_note_on(uint8_t osc); 
@@ -276,8 +268,6 @@ extern void triangle_note_on(uint8_t osc);
 extern void pulse_note_on(uint8_t osc); 
 extern void pcm_note_on(uint8_t osc);
 extern void pcm_note_off(uint8_t osc);
-extern void partial_note_on(uint8_t osc);
-extern void partial_note_off(uint8_t osc);
 extern void algo_note_on(uint8_t osc);
 extern void algo_note_off(uint8_t osc) ;
 extern void sine_mod_trigger(uint8_t osc);
@@ -286,31 +276,25 @@ extern void saw_up_mod_trigger(uint8_t osc);
 extern void triangle_mod_trigger(uint8_t osc);
 extern void pulse_mod_trigger(uint8_t osc);
 extern void pcm_mod_trigger(uint8_t osc);
-extern float amy_get_random();
+extern SAMPLE amy_get_random();
 
 // filters
 extern void filters_init();
 extern void filters_deinit();
-extern void filter_process(float * block, uint8_t osc);
-extern void parametric_eq_process(float *block);
+extern void filter_process(SAMPLE * block, uint8_t osc);
+extern void parametric_eq_process(SAMPLE *block);
 extern void update_filter(uint8_t osc);
 extern float dsps_sqrtf_f32_ansi(float f);
-extern int8_t dsps_biquad_gen_lpf_f32(float *coeffs, float f, float qFactor);
-extern int8_t dsps_biquad_f32_ansi(const float *input, float *output, int len, float *coef, float *w);
-// Use the esp32 optimized biquad filter if available
-#ifdef ESP_PLATFORM
-#include "esp_err.h"
-esp_err_t dsps_biquad_f32_ae32(const float *input, float *output, int len, float *coef, float *w);
-#else
+extern int8_t dsps_biquad_gen_lpf_f32(SAMPLE *coeffs, float f, float qFactor);
+extern int8_t dsps_biquad_f32_ansi(const SAMPLE *input, SAMPLE *output, int len, SAMPLE *coef, SAMPLE *w);
 int web_audio_buffer(float *samples, int length);
 void amy_start_web(uint8_t);
-#endif
 
 
 
 // envelopes
-extern float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set);
-extern float compute_mod_scale(uint8_t osc);
+extern SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set);
+extern SAMPLE compute_mod_scale(uint8_t osc);
 extern void retrigger_mod_source(uint8_t osc);
 
 

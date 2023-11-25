@@ -4,15 +4,15 @@
 
 #ifndef LUTENTRY_FXPT_DEFINED
 #define LUTENTRY_FXPT_DEFINED
-typedef int16_t SAMPTYPE;
 typedef struct {
-    const SAMPTYPE *table;
+    const int16_t *table;
     int table_size;
+    int log_2_table_size;
     int highest_harmonic;
 } lut_entry_fxpt;
 #endif // LUTENTRY_FXPT_DEFINED
 
-const SAMPTYPE sine_fxpt_lutable_0[256] = {
+const int16_t sine_fxpt_lutable_0[256] = {
 0,804,1608,2411,3212,4011,4808,5602,
 6393,7180,7962,8740,9512,10279,11039,11793,
 12540,13279,14010,14733,15447,16151,16846,17531,
@@ -48,7 +48,7 @@ const SAMPTYPE sine_fxpt_lutable_0[256] = {
 };
 
 lut_entry_fxpt sine_fxpt_lutset[2] = {
-    {sine_fxpt_lutable_0, 256, 1},
+    {sine_fxpt_lutable_0, 256, 8, 1},
     {NULL, 0, 0},
 };
 

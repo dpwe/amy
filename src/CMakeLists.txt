@@ -24,7 +24,7 @@ if (TARGET tinyusb_device)
             envelope.c
             filters.c
             oscillators.c
-            partials.c
+            # partials.c
             pcm.c
     )
 

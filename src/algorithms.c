@@ -7,7 +7,7 @@
 typedef struct {
     float freq;
     float freq_ratio;
-    float amp;
+    SAMPLE amp;
     float amp_rate[NUM_ALGO_BPS];
     float amp_time[NUM_ALGO_BPS];
     int8_t lfo_target;
@@ -16,13 +16,13 @@ typedef struct {
 
 typedef struct  {
     uint8_t algo;
-    float feedback;
+    SAMPLE feedback;
     float pitch_rate[NUM_ALGO_BPS];
     uint16_t pitch_time[NUM_ALGO_BPS];
     float lfo_freq;
     int8_t lfo_wave;
-    float lfo_amp_amp;
-    float lfo_pitch_amp;
+    SAMPLE lfo_amp_amp;
+    SAMPLE lfo_pitch_amp;
     operator_parameters_t ops[MAX_ALGO_OPS];
 } algorithms_parameters_t;
 
@@ -79,11 +79,11 @@ struct FmAlgorithm algorithms[33] = {
 };
 // End of MSFA stuff
 
-float zeros[BLOCK_SIZE];
+SAMPLE zeros[BLOCK_SIZE];
 
 
 // a = 0
-void zero(float *a) {
+void zero(SAMPLE* a) {
     for(uint16_t i=0;i<BLOCK_SIZE;i++) {
         a[i] = 0;
     }
@@ -91,20 +91,20 @@ void zero(float *a) {
 
 
 // b = a + b
-void add(float *a, float*b) {
+void add(SAMPLE* a, SAMPLE* b) {
     for(uint16_t i=0;i<BLOCK_SIZE;i++) {
-        b[i] = (a[i] + b[i]);
+        b[i] += a[i];
     }
 }
 
 // b = a 
-void copy(float *a, float*b) {
+void copy(SAMPLE* a, SAMPLE* b) {
     for(uint16_t i=0;i<BLOCK_SIZE;i++) {
         b[i] = a[i];
     }
 }
 
-void render_mod(float *in, float*out, uint8_t osc, float feedback_level, uint8_t algo_osc) {
+void render_mod(SAMPLE *in, SAMPLE* out, uint8_t osc, SAMPLE feedback_level, uint8_t algo_osc) {
 
     hold_and_modify(osc);
 
@@ -220,14 +220,14 @@ void algo_init() {
 
 
 
-void render_algo(float * buf, uint8_t osc) { 
-    float scratch[5][BLOCK_SIZE];
+void render_algo(SAMPLE* buf, uint8_t osc) { 
+    SAMPLE scratch[5][BLOCK_SIZE];
 
     struct FmAlgorithm algo = algorithms[synth[osc].algorithm];
 
     // starts at op 6
-    float *in_buf;
-    float *out_buf = NULL;
+    SAMPLE* in_buf;
+    SAMPLE* out_buf = NULL;
 
     // TODO, i think i need at most 2 of these buffers, maybe 3?? 
     zero(scratch[0]);
@@ -239,7 +239,7 @@ void render_algo(float * buf, uint8_t osc) {
     for(uint8_t op=0;op<MAX_ALGO_OPS;op++) {
         if(synth[osc].algo_source[op] >=0 && synth[synth[osc].algo_source[op]].status == IS_ALGO_SOURCE) {
             ops_used++;
-            float feedback_level = 0;
+            SAMPLE feedback_level = 0;
             if(algo.ops[op] & FB_IN) { 
                 feedback_level = synth[osc].feedback; 
             } // main algo voice stores feedback, not the op 
@@ -292,7 +292,8 @@ void render_algo(float * buf, uint8_t osc) {
     }
     // TODO, i need to figure out what happens on note offs for algo_sources.. they should still render..
     if(ops_used == 0) ops_used = 1;
+    SAMPLE amp = MUL0_SS(msynth[osc].amp, F2S(1.0f / (float)ops_used));
     for(uint16_t i=0;i<BLOCK_SIZE;i++) {
-        buf[i] = buf[i] * msynth[osc].amp * (1.0 / (float)ops_used);
+        buf[i] = MUL0_SS(buf[i], amp);
     }
 }

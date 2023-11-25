@@ -27,8 +27,8 @@ struct event * synth;
 struct mod_event * msynth;
 
 // Two float mixing blocks, one per core of rendering
-float ** fbl;
-float per_osc_fb[AMY_CORES][BLOCK_SIZE];
+SAMPLE ** fbl;
+SAMPLE per_osc_fb[AMY_CORES][BLOCK_SIZE];
 
 // block -- what gets sent to the DAC -- -32768...32767 (int16 LE)
 output_sample_type * block;
@@ -85,8 +85,8 @@ struct event amy_default_event() {
     e.status = EMPTY;
     e.time = 0;
     e.osc = 0;
-    e.step = 0;
-    e.substep = 0;
+    //e.step = 0;
+    //e.substep = 0;
     e.sample = DOWN;
     e.patch = -1;
     e.wave = -1;
@@ -243,9 +243,9 @@ void reset_osc(uint8_t i ) {
     synth[i].resonance = 0.7;
     msynth[i].resonance = 0.7;
     synth[i].velocity = 0;
-    synth[i].step = 0;
+    //synth[i].step = 0;
+    //synth[i].substep = 0;
     synth[i].sample = DOWN;
-    synth[i].substep = 0;
     synth[i].status = OFF;
     synth[i].mod_source = -1;
     synth[i].mod_target = 0; 
@@ -277,7 +277,6 @@ void amy_reset_oscs() {
 
 // The synth object keeps held state, whereas events are only deltas/changes
 int8_t oscs_init() {
-    ks_init();
     filters_init();
     algo_init();
     pcm_init();
@@ -307,9 +306,9 @@ int8_t oscs_init() {
         events[i].data = 0;
         events[i].param = NO_PARAM;
     }
-    fbl = (float**) malloc(sizeof(float*) * 2); // one per core, just core 0 used off esp32
-    fbl[0]= (float*)malloc(sizeof(float) * BLOCK_SIZE);
-    fbl[1]= (float*)malloc(sizeof(float) * BLOCK_SIZE);
+    fbl = (SAMPLE**) malloc(sizeof(SAMPLE*) * 2); // one per core, just core 0 used off esp32
+    fbl[0]= (SAMPLE*)malloc(sizeof(SAMPLE) * BLOCK_SIZE);
+    fbl[1]= (SAMPLE*)malloc(sizeof(SAMPLE) * BLOCK_SIZE);
     // Clear out both as local mode won't use fbl[1] 
     for(uint16_t i=0;i<BLOCK_SIZE;i++) { fbl[0][i] =0; fbl[1][i] = 0;}
     total_samples = 0;
@@ -334,12 +333,12 @@ void show_debug(uint8_t type) {
     if(type>2) {
         // print out all the osc data
         //printf("global: filter %f resonance %f volume %f status %d\n", global.filter_freq, global.resonance, global.volume, global.status);
-        fprintf(stderr,"global: volume %f eq: %f %f %f \n", global.volume, global.eq[0], global.eq[1], global.eq[2]);
+        fprintf(stderr,"global: volume %f eq: %f %f %f \n", global.volume, S2F(global.eq[0]), S2F(global.eq[1]), S2F(global.eq[2]));
         //printf("mod global: filter %f resonance %f\n", mglobal.filter_freq, mglobal.resonance);
         for(uint8_t i=0;i<OSCS;i++) {
-            fprintf(stderr,"osc %d: status %d amp %f wave %d freq %f duty %f mod_target %d mod source %d velocity %f filter_freq %f ratio %f feedback %f resonance %f step %f algo %d source %d,%d,%d,%d,%d,%d  \n",
-                i, synth[i].status, synth[i].amp, synth[i].wave, synth[i].freq, synth[i].duty, synth[i].mod_target, synth[i].mod_source, 
-                synth[i].velocity, synth[i].filter_freq, synth[i].ratio, synth[i].feedback, synth[i].resonance, synth[i].step, synth[i].algorithm,
+            fprintf(stderr,"osc %d: status %d amp %f wave %d freq %f duty %f mod_target %d mod source %d velocity %f filter_freq %f ratio %f feedback %f resonance %f algo %d source %d,%d,%d,%d,%d,%d  \n",
+                    i, synth[i].status, S2F(synth[i].amp), synth[i].wave, synth[i].freq, synth[i].duty, synth[i].mod_target, synth[i].mod_source, 
+                synth[i].velocity, synth[i].filter_freq, synth[i].ratio, synth[i].feedback, synth[i].resonance, synth[i].algorithm,
                 synth[i].algo_source[0], synth[i].algo_source[1], synth[i].algo_source[2], synth[i].algo_source[3], synth[i].algo_source[4], synth[i].algo_source[5] );
             if(type>3) { 
                 for(uint8_t j=0;j<MAX_BREAKPOINT_SETS;j++) {
@@ -366,7 +365,6 @@ void oscs_deinit() {
     free(msynth);
     free(events);
 
-    ks_deinit();
     filters_deinit();
 }
 
@@ -389,11 +387,11 @@ void play_event(struct delta d) {
             d.param = VELOCITY;
         }
     }
-    if(d.param == PHASE) synth[d.osc].phase = *(float *)&d.data;
+    if(d.param == PHASE) synth[d.osc].phase = F2P(*(float *)&d.data);  // PHASOR
     if(d.param == PATCH) synth[d.osc].patch = *(int16_t *)&d.data;
     if(d.param == DUTY) synth[d.osc].duty = *(float *)&d.data;
-    if(d.param == FEEDBACK) synth[d.osc].feedback = *(float *)&d.data;
-    if(d.param == AMP) synth[d.osc].amp = *(float *)&d.data; 
+    if(d.param == FEEDBACK) synth[d.osc].feedback = F2S(*(float *)&d.data);  // SAMPLE
+    if(d.param == AMP) synth[d.osc].amp = F2S(*(float *)&d.data);  // SAMPLE
     if(d.param == FREQ) synth[d.osc].freq = *(float *)&d.data;
     
     if(d.param == BP0_TARGET) { synth[d.osc].breakpoint_target[0] = *(int16_t *)&d.data; trig=1; }
@@ -435,19 +433,17 @@ void play_event(struct delta d) {
     // For global changes, just make the change, no need to update the per-osc synth
     if(d.param == VOLUME) global.volume = *(float *)&d.data;
     if(d.param == LATENCY) { global.latency_ms = *(int16_t *)&d.data; computed_delta_set = 0; }
-    if(d.param == EQ_L) global.eq[0] = powf(10, *(float *)&d.data / 20.0);
-    if(d.param == EQ_M) global.eq[1] = powf(10, *(float *)&d.data / 20.0);
-    if(d.param == EQ_H) global.eq[2] = powf(10, *(float *)&d.data / 20.0);
+    if(d.param == EQ_L) global.eq[0] = F2S(powf(10, *(float *)&d.data / 20.0));
+    if(d.param == EQ_M) global.eq[1] = F2S(powf(10, *(float *)&d.data / 20.0));
+    if(d.param == EQ_H) global.eq[2] = F2S(powf(10, *(float *)&d.data / 20.0));
 
     // Triggers / envelopes 
     // The only way a sound is made is if velocity (note on) is >0.
     if(d.param == VELOCITY && *(float *)&d.data > 0) { // New note on (even if something is already playing on this osc)
-        synth[d.osc].amp = *(float *)&d.data; // these could be decoupled, later
+        synth[d.osc].amp = F2S(*(float *)&d.data); // these could be decoupled, later
         synth[d.osc].velocity = *(float *)&d.data;
         synth[d.osc].status = AUDIBLE;
-        // Take care of FM & KS first -- no special treatment for bp/MOD
-        if(synth[d.osc].wave==KS) { ks_note_on(d.osc); } 
-        else {
+        {
             // an osc came in with a note on.
             // Start the bp clock
             synth[d.osc].note_on_clock = total_samples; //esp_timer_get_time() / 1000;
@@ -462,8 +458,6 @@ void play_event(struct delta d) {
             if(synth[d.osc].wave==PULSE) pulse_note_on(d.osc);
             if(synth[d.osc].wave==PCM) pcm_note_on(d.osc);
             if(synth[d.osc].wave==ALGO) algo_note_on(d.osc);
-            if(synth[d.osc].wave==PARTIAL) partial_note_on(d.osc);
-            if(synth[d.osc].wave==PARTIALS) partials_note_on(d.osc);
             // Trigger the MOD source, if we have one
             if(synth[d.osc].mod_source >= 0) {
                 if(synth[synth[d.osc].mod_source].wave==SINE) sine_mod_trigger(synth[d.osc].mod_source);
@@ -477,10 +471,7 @@ void play_event(struct delta d) {
         }
     } else if(synth[d.osc].velocity > 0 && d.param == VELOCITY && *(float *)&d.data == 0) { // new note off
         synth[d.osc].velocity = 0;
-        if(synth[d.osc].wave==KS) { ks_note_off(d.osc); }
-        else if(synth[d.osc].wave==ALGO) { algo_note_off(d.osc); } 
-        else if(synth[d.osc].wave==PARTIAL) { partial_note_off(d.osc); }
-        else if(synth[d.osc].wave==PARTIALS) { partials_note_off(d.osc); }
+        if(synth[d.osc].wave==ALGO) { algo_note_off(d.osc); } 
         else if(synth[d.osc].wave==PCM) { pcm_note_off(d.osc); }
         else {
             // osc note off, start release
@@ -502,15 +493,15 @@ void hold_and_modify(uint8_t osc) {
     msynth[osc].resonance = synth[osc].resonance;
 
     // Modify the synth params by scale -- bp scale is (original * scale)
-    float all_set_scale = 0;
+    SAMPLE all_set_scale = 0;
     for(uint8_t i=0;i<MAX_BREAKPOINT_SETS;i++) {
-        float scale = compute_breakpoint_scale(osc, i);
-        if(synth[osc].breakpoint_target[i] & TARGET_AMP) msynth[osc].amp = msynth[osc].amp * scale;
-        if(synth[osc].breakpoint_target[i] & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty * scale;
-        if(synth[osc].breakpoint_target[i] & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq * scale;
-        if(synth[osc].breakpoint_target[i] & TARGET_FEEDBACK) msynth[osc].feedback = msynth[osc].feedback * scale;
-        if(synth[osc].breakpoint_target[i] & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq * scale;
-        if(synth[osc].breakpoint_target[i] & TARGET_RESONANCE) msynth[osc].resonance = msynth[osc].resonance * scale;
+        SAMPLE scale = compute_breakpoint_scale(osc, i);
+        if(synth[osc].breakpoint_target[i] & TARGET_AMP) msynth[osc].amp = MUL4_SS(msynth[osc].amp, scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty * S2F(scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq * S2F(scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_FEEDBACK) msynth[osc].feedback = MUL4_SS(msynth[osc].feedback, scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq * S2F(scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_RESONANCE) msynth[osc].resonance = msynth[osc].resonance * S2F(scale);
         all_set_scale = all_set_scale + scale;
     }
     if(all_set_scale == 0) { // all BP sets were 0, which means we are in a note off and nobody is active anymore. time to stop the note.
@@ -519,13 +510,13 @@ void hold_and_modify(uint8_t osc) {
     }
 
     // And the mod -- mod scale is (original + (original * scale))
-    float scale = compute_mod_scale(osc);
-    if(synth[osc].mod_target & TARGET_AMP) msynth[osc].amp = msynth[osc].amp + (msynth[osc].amp * scale);
-    if(synth[osc].mod_target & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty + (msynth[osc].duty * scale);
-    if(synth[osc].mod_target & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq + (msynth[osc].freq * scale);
-    if(synth[osc].mod_target & TARGET_FEEDBACK) msynth[osc].feedback = msynth[osc].feedback + (msynth[osc].feedback * scale);
-    if(synth[osc].mod_target & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq + (msynth[osc].filter_freq * scale);
-    if(synth[osc].mod_target & RESONANCE) msynth[osc].resonance = msynth[osc].resonance + (msynth[osc].resonance * scale);
+    SAMPLE scale = compute_mod_scale(osc);
+    if(synth[osc].mod_target & TARGET_AMP) msynth[osc].amp = msynth[osc].amp + MUL4_SS(msynth[osc].amp, scale);
+    if(synth[osc].mod_target & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty + (msynth[osc].duty * S2F(scale));
+    if(synth[osc].mod_target & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq + (msynth[osc].freq * S2F(scale));
+    if(synth[osc].mod_target & TARGET_FEEDBACK) msynth[osc].feedback = msynth[osc].feedback + MUL4_SS(msynth[osc].feedback, scale);
+    if(synth[osc].mod_target & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq + (msynth[osc].filter_freq * S2F(scale));
+    if(synth[osc].mod_target & RESONANCE) msynth[osc].resonance = msynth[osc].resonance + (msynth[osc].resonance * S2F(scale));
 }
 
 
@@ -541,11 +532,8 @@ void render_task(uint8_t start, uint8_t end, uint8_t core) {
             if(synth[osc].wave == PULSE) render_pulse(per_osc_fb[core], osc);
             if(synth[osc].wave == TRIANGLE) render_triangle(per_osc_fb[core], osc);
             if(synth[osc].wave == SINE) render_sine(per_osc_fb[core], osc);
-            if(synth[osc].wave == KS) render_ks(per_osc_fb[core], osc);
             if(synth[osc].wave == PCM) render_pcm(per_osc_fb[core], osc);
             if(synth[osc].wave == ALGO) render_algo(per_osc_fb[core], osc);
-            if(synth[osc].wave == PARTIAL) render_partial(per_osc_fb[core], osc);
-            if(synth[osc].wave == PARTIALS) render_partials(per_osc_fb[core], osc);
             // Check it's not off, just in case. TODO, why do i care?
             if(synth[osc].wave != OFF) {
                 // Apply filter to osc if set
@@ -622,14 +610,14 @@ int16_t * fill_audio_buffer_task() {
 #endif
 
     // Global volume is supposed to max out at 10, so scale by 0.1.
-    float volume_scale = 0.1f * global.volume;
+    SAMPLE volume_scale = F2S(0.1f * global.volume);
     //uint8_t nonzero = 0;
     for(int16_t i=0; i < BLOCK_SIZE; ++i) {
         // Mix all the oscillator buffers into one
-        float fsample = volume_scale * (fbl[0][i] + fbl[1][i]) * 32767.0f;
+        SAMPLE fsample = MUL4_SS(volume_scale, fbl[0][i] + fbl[1][i]);
         // One-pole high-pass filter to remove large low-frequency excursions from
         // some FM patches. b = [1 -1]; a = [1 -0.995]
-        float new_state = fsample + 0.995f * global.hpf_state;
+        SAMPLE new_state = fsample + MUL4_SS(F2S(0.995f), global.hpf_state);
         fsample = new_state - global.hpf_state;
         global.hpf_state = new_state;
     
@@ -637,11 +625,11 @@ int16_t * fill_audio_buffer_task() {
         int positive = 1; 
         if (fsample < 0) positive = 0;
         // Using a uint gives us factor-of-2 headroom (up to 65535 not 32767).
-        uint16_t uintval;
+        int32_t uintval;
         if (positive) {  // avoid fabs()
-            uintval = (int)fsample;
+            uintval = S2L(fsample);
         } else {
-            uintval = (int)(-fsample);
+            uintval = S2L(-fsample);
         }
         if (uintval >= FIRST_NONLIN) {
             if (uintval >= FIRST_HARDCLIP) {

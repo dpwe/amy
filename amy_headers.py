@@ -167,7 +167,7 @@ def create_lutset(LUTentry, harmonic_weights, harmonic_phases=None,
 
 
 def write_lutset_to_h(filename, variable_base, lutset):
-    """Savi out a lutset as a C-compatible header file."""
+    """Save out a lutset as a C-compatible header file."""
     num_luts = len(lutset)
     with open(filename, "w") as f:
         f.write("// Automatically-generated LUTset\n")
@@ -213,7 +213,8 @@ def write_lutset_to_h(filename, variable_base, lutset):
 
 
 def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
-    """Savi out a lutset as a C-compatible header file using ints."""
+    """Save out a lutset as a C-compatible header file using ints."""
+    import math
     num_luts = len(lutset)
     with open(filename, "w") as f:
         f.write("// Automatically-generated LUTset\n")
@@ -223,10 +224,10 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
         # Define the structure.
         f.write("#ifndef LUTENTRY_FXPT_DEFINED\n")
         f.write("#define LUTENTRY_FXPT_DEFINED\n")
-        f.write("typedef int16_t SAMPTYPE;\n");
         f.write("typedef struct {\n")
-        f.write("    const SAMPTYPE *table;\n")
+        f.write("    const int16_t *table;\n")
         f.write("    int table_size;\n")
+        f.write("    int log_2_table_size;\n")
         f.write("    int highest_harmonic;\n")
         f.write("} lut_entry_fxpt;\n")
         f.write("#endif // LUTENTRY_FXPT_DEFINED\n")
@@ -235,7 +236,7 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
         samples_per_row = 8
         for i in range(num_luts):
             table_size = len(lutset[i].table)
-            f.write("const SAMPTYPE {:s}_fxpt_lutable_{:d}[{:d}] = {{\n".format(
+            f.write("const int16_t {:s}_fxpt_lutable_{:d}[{:d}] = {{\n".format(
                 variable_base, i, table_size))
             for row_start in range(0, table_size, samples_per_row):
                 for sample_index in range(row_start, 
@@ -248,8 +249,11 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
         f.write("lut_entry_fxpt {:s}_fxpt_lutset[{:d}] = {{\n".format(
             variable_base, num_luts + 1))
         for i in range(num_luts):
-            f.write("    {{{:s}_fxpt_lutable_{:d}, {:d}, {:d}}},\n".format(
-                variable_base, i, len(lutset[i].table), 
+            table_size = len(lutset[i].table)
+            # Provide the shift size corresponding to the lutset.
+            log_2_table_size = int(round(math.log(table_size) / math.log(2.0)))
+            f.write("    {{{:s}_fxpt_lutable_{:d}, {:d}, {:d}, {:d}}},\n".format(
+                variable_base, i, table_size, log_2_table_size,
                 lutset[i].highest_harmonic))
         # Final entry is null to indicate end of table.
         f.write("    {NULL, 0, 0},\n")
@@ -308,6 +312,7 @@ def generate_all():
     # Impulses.
     impulse_lutset = create_lutset(LUTentry, np.ones(128))
     write_lutset_to_h('src/impulse_lutset.h', 'impulse', impulse_lutset)
+    write_lutset_to_h_as_fxpt('src/impulse_lutset_fxpt.h', 'impulse', impulse_lutset)
 
     # Triangle wave lutset
     n_harms = 64
@@ -315,6 +320,7 @@ def generate_all():
         np.maximum(1, np.arange(n_harms, dtype=float))**(-2))
     triangle_lutset = create_lutset(LUTentry, coefs, np.arange(len(coefs)) * -np.pi / 2)
     write_lutset_to_h('src/triangle_lutset.h', 'triangle', triangle_lutset)
+    write_lutset_to_h_as_fxpt('src/triangle_lutset_fxpt.h', 'triangle', triangle_lutset)
 
     # Sinusoid "lutset" (only one table)
     sine_lutset = create_lutset(LUTentry, np.array([0, 1]),  harmonic_phases = -np.pi / 2 * np.ones(2), length_factor=256)

@@ -39,19 +39,18 @@ void pcm_init() {
 */
 }
 
+// How many bits used for fractional part of PCM tabel index.
+#define PCM_INDEX_FRAC_BITS 15
+// The number of bits used to hold the table index.
+#define PCM_INDEX_BITS (31 - PCM_INDEX_FRAC_BITS)
+
 void pcm_note_on(uint8_t osc) {
-	// if no freq given, just play it at midinote
-	if(synth[osc].patch<0) synth[osc].patch = 0;
-	pcm_map_t patch = pcm_map[synth[osc].patch];
-    if(synth[osc].freq <= 0) synth[osc].freq = PCM_SAMPLE_RATE; // / freq_for_midi_note(patch.midinote);
-    synth[osc].step = (patch.offset/(float)PCM_SAMPLES); // normalized start sample
-    // Use substep here as "end sample" so we don't have to add another field to the struct
-    // and lpf_state for loopstart, and lpf_alpha for loopend.
-    synth[osc].sample = patch.offset; // offset into table, needed as float32s don't have enough precision to index into big table
-    synth[osc].step = 0; // start at the beginning of the sample
-    synth[osc].substep = patch.length; // end sample
-    synth[osc].lpf_state = patch.loopstart;
-    synth[osc].lpf_alpha = patch.loopend;
+    if(synth[osc].patch < 0) synth[osc].patch = 0;
+    const pcm_map_t *patch = &pcm_map[synth[osc].patch];
+    // if no freq given, just play it at midinote
+    if(synth[osc].freq <= 0)
+        synth[osc].freq = PCM_SAMPLE_RATE; // / freq_for_midi_note(patch->midinote);
+    synth[osc].phase = 0; // s16.15 index into the table; as if a PHASOR into a 16 bit sample table. 
 }
 
 void pcm_mod_trigger(uint8_t osc) {
@@ -59,56 +58,65 @@ void pcm_mod_trigger(uint8_t osc) {
 }
 
 void pcm_note_off(uint8_t osc) {
-    // if looping set, set loopend to the end of the sample, so it'll play through and die out
+    // if looping set, disable looping; sample should play through to end.
     if(msynth[osc].feedback > 0) {
-        synth[osc].lpf_alpha = synth[osc].substep;
+        msynth[osc].feedback = 0;
     } else {
-        // just set step to the end
-        synth[osc].step = synth[osc].substep;
+        // Set phase to the end to cause immediate stop.
+        synth[osc].phase = pcm_map[synth[osc].patch].length << PCM_INDEX_FRAC_BITS;
     }
 }
 
-void render_pcm(float * buf, uint8_t osc) {
-    pcm_map_t patch = pcm_map[synth[osc].patch];
+void render_pcm(SAMPLE* buf, uint8_t osc) {
+    // Patches can be > 32768 samples long.
+    // We need s16.15 fixed-point indexing.
+    const pcm_map_t* patch = &pcm_map[synth[osc].patch];
     float playback_freq = PCM_SAMPLE_RATE;
     if(msynth[osc].freq < PCM_SAMPLE_RATE) { // user adjusted freq 
-        float base_freq = freq_for_midi_note(patch.midinote); 
+        float base_freq = freq_for_midi_note(patch->midinote); 
         playback_freq = (msynth[osc].freq / base_freq) * PCM_SAMPLE_RATE;
     }
-    float skip = playback_freq / (float)SAMPLE_RATE;
-    for(uint16_t i=0;i<BLOCK_SIZE;i++) {
-        float float_index = synth[osc].step;
-        uint32_t base_index = (uint32_t) float_index;
-        float frac = float_index - (float)base_index;
-        float b = (float)(pcm[base_index + (uint32_t)synth[osc].sample])/(float)SAMPLE_MAX;
-        float c = b;
-        if((base_index+1) < PCM_LENGTH) c = (float)(pcm[(base_index + 1) + (uint32_t)synth[osc].sample])/(float)SAMPLE_MAX;
-        float sample = b + ((c - b) * frac);
-        synth[osc].step = (synth[osc].step + skip);
-        if(synth[osc].step >= synth[osc].substep ) { // end
-            synth[osc].status=OFF;// is this right? 
+    PHASOR step = F2P(playback_freq / (float)SAMPLE_RATE / (1 << PCM_INDEX_BITS));
+    const LUTSAMPLE* table = pcm + patch->offset;
+    uint32_t base_index = INT_OF_P(synth[osc].phase, PCM_INDEX_BITS);
+    for(uint16_t i=0; i < BLOCK_SIZE; i++) {
+        SAMPLE frac = S_FRAC_OF_P(synth[osc].phase, PCM_INDEX_BITS);
+        LUTSAMPLE b = table[base_index];
+        LUTSAMPLE c = b;
+        if (base_index < patch->length) c = table[base_index + 1];
+        SAMPLE sample = L2S(b) + MUL0_SS(L2S(c - b), frac);
+        synth[osc].phase = P_WRAPPED_SUM(synth[osc].phase, step);
+        base_index = INT_OF_P(synth[osc].phase, PCM_INDEX_BITS);
+        if(base_index >= patch->length) { // end
+            synth[osc].status = OFF;// is this right? 
             sample = 0;
         } else {
             if(msynth[osc].feedback > 0) { // loop       
-                if(synth[osc].step > synth[osc].lpf_alpha) { // loopend
-                    synth[osc].step = synth[osc].lpf_state; // back to loopstart
+                if(base_index >= patch->loopend) { // loopend
+                    // back to loopstart
+                    int32_t loop_len = patch->loopend - patch->loopstart;
+                    synth[osc].phase -= loop_len << PCM_INDEX_FRAC_BITS;
+                    base_index -= loop_len;
                 }
             }
         }
-        buf[i] = (sample * msynth[osc].amp);
+        buf[i] += MUL4_SS(msynth[osc].amp, sample);
     }
-
 }
 
-float compute_mod_pcm(uint8_t osc) {
+SAMPLE compute_mod_pcm(uint8_t osc) {
     float mod_sr = (float)SAMPLE_RATE / (float)BLOCK_SIZE;
-    float skip = msynth[osc].freq / mod_sr;
-    float sample = pcm[(int)(synth[osc].step)];
-    synth[osc].step = (synth[osc].step + skip);
-    if(synth[osc].step >= synth[osc].substep ) { // end
-        synth[osc].status=OFF;
+    PHASOR step = F2P((PCM_SAMPLE_RATE / mod_sr) / (1 << PCM_INDEX_BITS));
+    const pcm_map_t* patch = &pcm_map[synth[osc].patch];
+    const LUTSAMPLE* table = pcm + patch->offset;
+    uint32_t base_index = INT_OF_P(synth[osc].phase, PCM_INDEX_BITS);
+    SAMPLE sample;
+    if(base_index >= patch->length) { // end
+        synth[osc].status = OFF;// is this right? 
         sample = 0;
+    } else {
+        sample = L2S(table[base_index]);
+        synth[osc].phase = P_WRAPPED_SUM(synth[osc].phase, step);
     }
-    return (sample * msynth[osc].amp) / SAMPLE_MAX; // -1 .. 1
-    
+    return MUL4_SS(msynth[osc].amp, sample);
 }

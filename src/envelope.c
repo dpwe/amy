@@ -8,7 +8,7 @@ extern struct mod_event* msynth;
 extern struct mod_state mglobal;
 
 
-float compute_mod_scale(uint8_t osc) {
+SAMPLE compute_mod_scale(uint8_t osc) {
     int8_t source = synth[osc].mod_source;
     if(synth[osc].mod_target >= 1 && source >= 0) {
         if(source != osc) {  // that would be weird
@@ -29,16 +29,17 @@ float compute_mod_scale(uint8_t osc) {
     }
     return 0; // 0 is no change, unlike bp scale
 }
-float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
+
+SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
     // given a breakpoint list, compute the scale
     // we first see how many BPs are defined, and where we are in them?
     int8_t found = -1;
     int8_t release = 0;
     int32_t t1,t0;
-    float v1,v0;
+    SAMPLE v1, v0;
     int8_t bp_r = 0;
     t0 = 0; v0 = 1.0;
-    float exponential_rate = 3.0;
+    SAMPLE exponential_rate = 3.0;
     int64_t elapsed = 0;    
 
     // Find out which one is release (the last one)
@@ -46,7 +47,7 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
     while(synth[osc].breakpoint_times[bp_set][bp_r] >= 0 && bp_r < MAX_BREAKPOINTS) bp_r++;
     bp_r--;
     if(bp_r<0) {
-        float scale = 1;
+        SAMPLE scale = F2S(1.0f);
         if(synth[osc].note_off_clock >= 0) scale = 0;
         synth[osc].last_scale[bp_set] = scale;
         return scale; 
@@ -61,7 +62,7 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
         // We didn't find anything, so set it to the one before bp_r
         if(found<0) {
             found = bp_r - 1; // sustain
-            float scale = synth[osc].breakpoint_values[bp_set][found];
+            SAMPLE scale = F2S(synth[osc].breakpoint_values[bp_set][found]);
             synth[osc].last_scale[bp_set] = scale;
             return scale;
         }
@@ -85,7 +86,7 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
                     if(bp_rx >= 0) {
                         // If my breakpoint time is less than another breakpoint time from a different set, return 1.0 and don't end the note
                         if(my_bt < synth[osc].breakpoint_times[test_bp_set][bp_rx]) {
-                            float scale = 1;
+                            SAMPLE scale = F2S(1.0f);
                             synth[osc].last_scale[bp_set] = scale;
                             return scale;
                           }
@@ -96,13 +97,13 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
             // which will set it to the bp end value before the fade out, often 0 so the fadeout never gets to hit. 
             // I'm not sure i love this solution, but PARTIAL is such a weird type that i guess having it called out like this is fine.
             if(synth[osc].wave==PARTIAL) {
-                float scale = 1;
+                SAMPLE scale = F2S(1.0f);
                 synth[osc].last_scale[bp_set] = scale;
                 return scale;
             }
             synth[osc].status=OFF;
             synth[osc].note_off_clock = -1;
-            float scale = synth[osc].breakpoint_values[bp_set][bp_r];
+            SAMPLE scale = F2S(synth[osc].breakpoint_values[bp_set][bp_r]);
             synth[osc].last_scale[bp_set] = scale;
             return scale;
         }
@@ -114,7 +115,7 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
         t0 = synth[osc].breakpoint_times[bp_set][found-1];
         v0 = synth[osc].breakpoint_values[bp_set][found-1]; 
     }
-    float scale = v0;
+    SAMPLE scale = v0;
     if(t1 < 0 || v1 < 0) {
         scale = 0;
     } else if(t1==t0 || elapsed==t1) {
@@ -125,12 +126,12 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
         float time_ratio = ((float)(elapsed - t0) / (float)(t1 - t0));
         // Compute scale based on which type we have
         if(synth[osc].breakpoint_target[bp_set] & TARGET_LINEAR) {
-            scale = v0 + ((v1-v0) * time_ratio);
+            scale = v0 + MUL4_SS(v1-v0, F2S(time_ratio));
         } else if(synth[osc].breakpoint_target[bp_set] & TARGET_TRUE_EXPONENTIAL) {
-            v0 = MAX(v0, BREAKPOINT_EPS);
-            v1 = MAX(v1, BREAKPOINT_EPS);
+            v0 = MAX(v0, F2S(BREAKPOINT_EPS));
+            v1 = MAX(v1, F2S(BREAKPOINT_EPS));
             float dx7_exponential_rate = -logf(v1/v0) / (t1 - t0);
-            scale = v0 * expf(-dx7_exponential_rate * (elapsed - t0)); 
+            scale = MUL4_SS(v0, F2S(expf(-dx7_exponential_rate * (elapsed - t0))));
         } else if(synth[osc].breakpoint_target[bp_set] & TARGET_DX7_EXPONENTIAL) {
             // Somewhat complicated relationship, see https://colab.research.google.com/drive/1qZmOw4r24IDijUFlel_eSoWEf3L5VSok#scrollTo=F5zkeACrOlum
 #define LINEAR_TO_DX7_LEVEL(linear) (MIN(99.0, logf(MAX(BREAKPOINT_EPS, linear)) * 8.0 + 99.0))
@@ -144,16 +145,16 @@ float compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
             float my_t0 = -t_const * logf(mapped_current_level);
             if (v1 > v0) {
                 // This is the magic equation that shapes the DX7 attack envelopes.
-                scale = DX7_LEVEL_TO_LINEAR(MIN_LEVEL + ATTACK_RANGE * (1 - expf(-(my_t0 + elapsed)/t_const)));
+                scale = F2S(DX7_LEVEL_TO_LINEAR(MIN_LEVEL + ATTACK_RANGE * (1 - expf(-(my_t0 + elapsed)/t_const))));
             } else {
                 // Decay is regular true_exponential
-                v0 = MAX(v0, BREAKPOINT_EPS);
-                v1 = MAX(v1, BREAKPOINT_EPS);
+                v0 = MAX(v0, F2S(BREAKPOINT_EPS));
+                v1 = MAX(v1, F2S(BREAKPOINT_EPS));
                 float dx7_exponential_rate = -logf(v1/v0) / (t1 - t0);
-                scale = v0 * expf(-dx7_exponential_rate * (elapsed - t0)); 
+                scale = MUL4_SS(v0, F2S(expf(-dx7_exponential_rate * (elapsed - t0))));
             }
         } else { // "false exponential?"
-            scale = v0 + ((v1-v0) * (1.0 - expf(-exponential_rate*time_ratio)));
+            scale = v0 + MUL4_SS(v1 - v0, F2S(1.0 - expf(-exponential_rate * time_ratio)));
         }
     }
     // Keep track of the most-recently returned non-release scale.
