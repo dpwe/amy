@@ -113,6 +113,7 @@ typedef struct {
     int table_size;
     int log_2_table_size;
     int highest_harmonic;
+    float scale_factor;
 } lut_entry_fxpt;
 #endif // LUTENTRY_FXPT_DEFINED
 

@@ -127,8 +127,10 @@ void render_lpf_lut(SAMPLE* buf, uint8_t osc, float duty, int8_t direction, SAMP
     // alpha = 1 - 1 / t_const; t_const = 10 / m_freq, so alpha = 1 - m_freq / 10
     synth[osc].lpf_alpha = F2S(1.0f - msynth[osc].freq / (10.0f * SAMPLE_RATE));
     // Scale the impulse proportional to the phase increment step so its integral remains ~constant.
-    SAMPLE amp = direction * MUL4_SS(msynth[osc].amp, F2S(P2F(step) * 4.0f));
-    synth[osc].phase = render_lut(buf, synth[osc].phase, step, synth[osc].last_amp, amp, synth[osc].lut);
+    const LUT *lut = synth[osc].lut;
+    SAMPLE amp = direction * MUL4_SS(msynth[osc].amp, F2S(P2F(step) * 4.0f * lut->scale_factor));
+    printf("render_lpf_lut: osc %d freq %f amp %f\n", osc, P2F(step), S2F(amp));
+    synth[osc].phase = render_lut(buf, synth[osc].phase, step, synth[osc].last_amp, amp, lut);
     if (duty > 0) {  // For pulse only, add a second delayed negative LUT wave.
         PHASOR pwm_phase = P_WRAPPED_SUM(synth[osc].phase, F2P(duty));
         render_lut(buf, pwm_phase, step, -synth[osc].last_amp, -amp, synth[osc].lut);
@@ -177,6 +179,7 @@ SAMPLE compute_mod_pulse(uint8_t osc) {
 
 /* Saw waves */
 void saw_note_on(uint8_t osc, int8_t direction_notused) {
+    printf("saw_note_on: osc %d freq %f\n", osc, synth[osc].freq);
     float period_samples = ((float)SAMPLE_RATE / synth[osc].freq);
     synth[osc].lut = choose_from_lutset(period_samples, impulse_fxpt_lutset);
     synth[osc].lpf_state = 0;
@@ -197,7 +200,6 @@ void saw_up_note_on(uint8_t osc) {
 }
 
 void render_saw(SAMPLE* buf, uint8_t osc, int8_t direction) {
-    SAMPLE amp = S2F(msynth[osc].amp) * direction * synth[osc].freq * 4.0f / SAMPLE_RATE;
     render_lpf_lut(buf, osc, 0, direction, synth[osc].dc_offset);
 }
 
@@ -299,6 +301,7 @@ void render_fm_sine(SAMPLE* buf, uint8_t osc, SAMPLE* mod, SAMPLE feedback_level
 
 /* sine */
 void sine_note_on(uint8_t osc) {
+    printf("sine_note_on: osc %d freq %f\n", osc, synth[osc].freq);
     // There's really only one sine table, but for symmetry with the other ones...
     float period_samples = (float)SAMPLE_RATE / synth[osc].freq;
     synth[osc].lut = choose_from_lutset(period_samples, sine_fxpt_lutset);
@@ -307,6 +310,7 @@ void sine_note_on(uint8_t osc) {
 void render_sine(SAMPLE* buf, uint8_t osc) { 
     PHASOR step = F2P(msynth[osc].freq / (float)SAMPLE_RATE);  // cycles per sec / samples per sec -> cycles per sample
     SAMPLE amp = msynth[osc].amp;
+    printf("render_sine: osc %d freq %f amp %f\n", osc, P2F(step), S2F(amp));
     synth[osc].phase = render_lut(buf, synth[osc].phase, step, synth[osc].last_amp, amp, synth[osc].lut);
     synth[osc].last_amp = amp;
 }

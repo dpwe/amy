@@ -497,6 +497,7 @@ void hold_and_modify(uint8_t osc) {
     SAMPLE all_set_scale = 0;
     for(uint8_t i=0;i<MAX_BREAKPOINT_SETS;i++) {
         SAMPLE scale = compute_breakpoint_scale(osc, i);
+        if (scale != F2S(1.0f)) printf("osc %d scale %f\n", osc, S2F(scale));
         if(synth[osc].breakpoint_target[i] & TARGET_AMP) msynth[osc].amp = MUL4_SS(msynth[osc].amp, scale);
         if(synth[osc].breakpoint_target[i] & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty * S2F(scale);
         if(synth[osc].breakpoint_target[i] & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq * S2F(scale);
@@ -525,7 +526,6 @@ void render_task(uint8_t start, uint8_t end, uint8_t core) {
     for(uint16_t i=0;i<BLOCK_SIZE;i++) { fbl[core][i] = 0; per_osc_fb[core][i] = 0; }
     for(uint8_t osc=start; osc<end; osc++) {
         if(synth[osc].status==AUDIBLE) { // skip oscs that are silent or mod sources from playback
-            printf("osc %d AUDIBLE wave=%d\n", osc, synth[osc].wave);
             for(uint16_t i=0;i<BLOCK_SIZE;i++) { per_osc_fb[core][i] = 0; }
             hold_and_modify(osc); // apply bp / mod
             if(synth[osc].wave == NOISE) render_noise(per_osc_fb[core], osc);
@@ -546,7 +546,6 @@ void render_task(uint8_t start, uint8_t end, uint8_t core) {
     }
     // apply the EQ filters if set
     if(global.eq[0] != 0 || global.eq[1] != 0 || global.eq[2] != 0) parametric_eq_process(fbl[core]);
-    printf("render_task exiting\n");
 }
 
 // On all platforms, sysclock is based on total samples played, using audio out (i2s or etc) as system clock
@@ -584,8 +583,6 @@ int16_t * fill_audio_buffer_task() {
     // Check to see which sounds to play 
     int64_t sysclock = amy_sysclock(); 
 
-    printf("fill_audio_buffer_task: sysclock=%ld\n", sysclock);
-    
 #ifdef ESP_PLATFORM
     // put a mutex around this so that the event parser doesn't touch these while i'm running  
     xSemaphoreTake(xQueueSemaphore, portMAX_DELAY);
@@ -611,9 +608,7 @@ int16_t * fill_audio_buffer_task() {
     if(AMY_CORES == 2) ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
 #else
     // TODO -- there's no reason we can't multicore render on other platforms
-    printf("about to render_task..\n");
     render_task(0, OSCS, 0);        
-    printf(".. render_task done.\n");
 #endif
 
     // Global volume is supposed to max out at 10, so scale by 0.1.

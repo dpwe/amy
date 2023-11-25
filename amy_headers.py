@@ -1,11 +1,11 @@
 # amy_headers.py
 # Generate headers for libAMY
 import sys
+import numpy as np
 
 def generate_amy_pcm_header(sample_set, name, pcm_sample_rate=22050):
     from sf2utils.sf2parse import Sf2File
     import resampy
-    import numpy as np
     import struct
     # These are the indexes that we liked and fit into the flash on ESP32. You can download the sf2 files here:
     # https://github.com/vigliensoni/soundfonts/blob/master/hs_tr808/HS-TR-808-Drums.sf2
@@ -102,7 +102,6 @@ def generate_both_pcm_headers():
 
 
 def cos_lut(table_size, harmonics_weights, harmonics_phases=None):
-    import numpy as np
     if harmonics_phases is None:
         harmonics_phases = np.zeros(len(harmonics_weights))
     table = np.zeros(table_size)
@@ -119,7 +118,6 @@ def cos_lut(table_size, harmonics_weights, harmonics_phases=None):
 # basic waveform, sorted with the longest (highest-bandwidth) first.
 def create_lutset(LUTentry, harmonic_weights, harmonic_phases=None, 
                                     length_factor=8, bandwidth_factor=None):
-    import numpy as np
     if bandwidth_factor is None:
         bandwidth_factor = np.sqrt(0.5)
     """Create an ordered list of LUTs with decreasing harmonic content.
@@ -229,19 +227,23 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
         f.write("    int table_size;\n")
         f.write("    int log_2_table_size;\n")
         f.write("    int highest_harmonic;\n")
+        f.write("    float scale_factor;\n")
         f.write("} lut_entry_fxpt;\n")
         f.write("#endif // LUTENTRY_FXPT_DEFINED\n")
         f.write("\n")
         # Define the content of the individual tables.
         samples_per_row = 8
+        scale_factors = []
         for i in range(num_luts):
             table_size = len(lutset[i].table)
+            scale_factor = np.max(np.abs(lutset[i].table))
+            scale_factors.append(scale_factor)
             f.write("const int16_t {:s}_fxpt_lutable_{:d}[{:d}] = {{\n".format(
                 variable_base, i, table_size))
             for row_start in range(0, table_size, samples_per_row):
                 for sample_index in range(row_start, 
                         min(row_start + samples_per_row, table_size)):
-                    f.write("{:d},".format(min(32767, max(-32768, int(round(32768 * lutset[i].table[sample_index]))))))
+                    f.write("{:d},".format(min(32767, max(-32768, int(round(32768 / scale_factor * lutset[i].table[sample_index]))))))
                 f.write("\n")
             f.write("};\n")
             f.write("\n")
@@ -252,9 +254,9 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
             table_size = len(lutset[i].table)
             # Provide the shift size corresponding to the lutset.
             log_2_table_size = int(round(math.log(table_size) / math.log(2.0)))
-            f.write("    {{{:s}_fxpt_lutable_{:d}, {:d}, {:d}, {:d}}},\n".format(
+            f.write("    {{{:s}_fxpt_lutable_{:d}, {:d}, {:d}, {:d}, {:f}}},\n".format(
                 variable_base, i, table_size, log_2_table_size,
-                lutset[i].highest_harmonic))
+                lutset[i].highest_harmonic, scale_factors[i]))
         # Final entry is null to indicate end of table.
         f.write("    {NULL, 0, 0},\n")
         f.write("};\n")
@@ -266,7 +268,6 @@ def write_lutset_to_h_as_fxpt(filename, variable_base, lutset):
 
 
 def make_clipping_lut(filename):
-    import numpy as np
     # Soft clipping lookup table scratchpad.
     SAMPLE_MAX = 32767
     LIN_MAX = 29491  #// int(round(0.9 * 32768))
@@ -301,7 +302,6 @@ def make_clipping_lut(filename):
 """
 def generate_all():
     import fm
-    import numpy as np
     import collections
     # Implement the multiple lookup tables.
     # A LUT is stored as an array of values (table) and the harmonic number of the

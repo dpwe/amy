@@ -9,6 +9,7 @@ typedef struct {
     int table_size;
     int log_2_table_size;
     int highest_harmonic;
+    float scale_factor;
 } lut_entry_fxpt;
 #endif // LUTENTRY_FXPT_DEFINED
 
@@ -48,7 +49,7 @@ const int16_t sine_fxpt_lutable_0[256] = {
 };
 
 lut_entry_fxpt sine_fxpt_lutset[2] = {
-    {sine_fxpt_lutable_0, 256, 8, 1},
+    {sine_fxpt_lutable_0, 256, 8, 1, 1.000000},
     {NULL, 0, 0},
 };
 
