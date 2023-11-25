@@ -133,11 +133,11 @@ int main() {
     //e.patch = 15;
 
     e.wave = SAW_DOWN;
-    //e.filter_freq = 2500.0;
-    //e.resonance = 5.0;
-    //e.filter_type = FILTER_LPF;
-    //e.breakpoint_target[0] = TARGET_FILTER_FREQ;
-    e.breakpoint_target[0] = TARGET_AMP;
+    e.filter_freq = 2500.0;
+    e.resonance = 5.0;
+    e.filter_type = FILTER_LPF;
+    e.breakpoint_target[0] = TARGET_FILTER_FREQ;
+    //e.breakpoint_target[0] = TARGET_AMP;
     //amy_add_event(e);
 
     //int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
@@ -145,10 +145,10 @@ int main() {
     //int notes[] = {60};
 
     //e = amy_default_event();
-    e.velocity = 0.2;
+    e.velocity = 0.05;
 
     // amy.send(osc=0, bp0="1000,0.2,200,0")
-    char bp0msg[] = "v0A0,1,1000,0.2,200,0\0";
+    char bp0msg[] = "v0A0,1,1000,0.01,200,0\0";
     for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
         e.osc += 1;
         bp0msg[1] = '0' + e.osc;

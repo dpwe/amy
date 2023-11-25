@@ -100,11 +100,12 @@ int8_t dsps_biquad_gen_bpf_f32(SAMPLE *coeffs, float f, float qFactor)
     return 0;
 }
 
+#define FILT_MUL_SS MUL8_SS
 
 int8_t dsps_biquad_f32_ansi(const SAMPLE *input, SAMPLE *output, int len, SAMPLE *coef, SAMPLE *w) {
     for (int i = 0 ; i < len ; i++) {
-        SAMPLE d0 = input[i] - MUL4_SS(coef[3], w[0]) - MUL4_SS(coef[4], w[1]);
-        output[i] = MUL4_SS(coef[0], d0) + MUL4_SS(coef[1], w[0]) + MUL4_SS(coef[2], w[1]);
+        SAMPLE d0 = input[i] - FILT_MUL_SS(coef[3], w[0]) - FILT_MUL_SS(coef[4], w[1]);
+        output[i] = FILT_MUL_SS(coef[0], d0) + FILT_MUL_SS(coef[1], w[0]) + FILT_MUL_SS(coef[2], w[1]);
         w[1] = w[0];
         w[0] = d0;
     }
@@ -135,9 +136,9 @@ void parametric_eq_process(SAMPLE *block) {
     dsps_biquad_f32_ansi(block, output[1], BLOCK_SIZE, eq_coeffs[1], eq_delay[1]);
     dsps_biquad_f32_ansi(block, output[2], BLOCK_SIZE, eq_coeffs[2], eq_delay[2]);
     for(uint16_t i=0;i<BLOCK_SIZE;i++)
-        block[i] = (MUL4_SS(output[0][i], global.eq[0])
-                    - MUL4_SS(output[1][i], global.eq[1])
-                    + MUL4_SS(output[2][i], global.eq[2]));
+        block[i] = (FILT_MUL_SS(output[0][i], global.eq[0])
+                    - FILT_MUL_SS(output[1][i], global.eq[1])
+                    + FILT_MUL_SS(output[2][i], global.eq[2]));
 }
 
 
