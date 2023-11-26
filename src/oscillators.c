@@ -185,7 +185,7 @@ SAMPLE compute_mod_pulse(uint8_t osc) {
 
 /* Saw waves */
 void saw_note_on(uint8_t osc, int8_t direction_notused) {
-    printf("saw_note_on: osc %d freq %f\n", osc, synth[osc].freq);
+    //printf("saw_note_on: osc %d freq %f amp %f\n", osc, synth[osc].freq, S2F(msynth[osc].amp));
     float period_samples = ((float)SAMPLE_RATE / synth[osc].freq);
     synth[osc].lut = choose_from_lutset(period_samples, impulse_fxpt_lutset);
     synth[osc].lpf_state = 0;

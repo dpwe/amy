@@ -90,6 +90,101 @@ struct audio_buffer_pool *init_audio() {
     return producer_pool;
 }
 
+void drums() {
+    struct event e = amy_default_event();
+    int64_t start = amy_sysclock();
+    e.time = start;
+
+    float volume = 0.2;
+    
+    int oscs[] = {0, 2, 3, 4, 5, 6};
+    int patches[] = {1, 5, 0, 10, 10, 5};
+    e.wave = PCM;
+    e.freq = 0;
+    e.velocity = 0;
+    for (int i = 0; i < sizeof(oscs) / sizeof(int); ++i) {
+        e.osc = oscs[i];
+        e.patch = patches[i];
+        amy_add_event(e);
+    }
+    // Update high cowbell.
+    e = amy_default_event();
+    e.time = start;
+    e.osc = 5;
+    e.midi_note = 70;
+    amy_add_event(e);
+
+    // osc 7 : bass
+    e = amy_default_event();
+    e.time = start;
+    e.osc = 7;
+    e.wave = SAW_DOWN;
+    e.filter_freq = 2500.0;
+    e.resonance = 5.0;
+    e.filter_type = FILTER_LPF;
+    e.breakpoint_target[0] = TARGET_AMP + TARGET_FILTER_FREQ;
+    amy_add_event(e);
+
+    char bp0msg[] = "v0A0,1,500,0.2,25,0\0";
+    bp0msg[1] = '0' + e.osc;
+    amy_play_message(bp0msg);
+
+    const int bass = 1 << 0;
+    const int snare = 1 << 1;
+    const int hat = 1 << 2;
+    const int cow = 1 << 3;
+    const int hicow = 1 << 4;
+
+    int pattern[] = {bass+hat, hat+hicow, bass+hat+snare, hat+cow, hat, hat+bass, snare+hat, hat};
+    int bassline[] = {50, 0, 0, 0, 50, 52, 51, 0};
+
+    e = amy_default_event();
+    e.time = start;
+    int loops = 4;
+    while (loops--) {
+        for (int i = 0; i < sizeof(pattern) / sizeof(int); ++i) {
+            e.time += 250;
+
+            int x = pattern[i];
+            if(x & bass) {
+                e.osc = 0;
+                e.velocity = 4.0 * volume;
+                amy_add_event(e);
+            }
+            if(x & snare) {
+                e.osc = 2;
+                e.velocity = 1.5 * volume;
+                amy_add_event(e);
+            }
+            if(x & hat) {
+                e.osc = 3;
+                e.velocity = 1 * volume;
+                amy_add_event(e);
+            }
+            if(x & cow) {
+                e.osc = 4;
+                e.velocity = 1 * volume;
+                amy_add_event(e);
+            }
+            if(x & hicow) {
+                e.osc = 5;
+                e.velocity = 1 * volume;
+                amy_add_event(e);
+            }
+
+            e.osc = 7;
+            if(bassline[i]>0) {
+                e.velocity = 0.5 * volume;
+                e.midi_note = bassline[i] - 12;
+            } else {
+                e.velocity = 0;
+            }
+            amy_add_event(e);
+            e.midi_note = -1;
+        }
+    }
+}
+
 int main() {
 
     stdio_init_all();
@@ -130,16 +225,16 @@ int main() {
     e.time = start;
     e.osc = 0;
 
-    e.wave = ALGO;
-    e.patch = 17;
-    osc_inc = 9;
+    //e.wave = ALGO;
+    //e.patch = 17;
+    //osc_inc = 9;
     
-    //e.wave = SAW_DOWN;
-    //e.filter_freq = 2500.0;
-    //e.resonance = 5.0;
-    //e.filter_type = FILTER_LPF;
-    //e.breakpoint_target[0] = TARGET_FILTER_FREQ;
-    //osc_inc = 1;
+    e.wave = SAW_DOWN;
+    e.filter_freq = 2500.0;
+    e.resonance = 5.0;
+    e.filter_type = FILTER_LPF;
+    e.breakpoint_target[0] = TARGET_FILTER_FREQ;
+    osc_inc = 1;
     
     //e.breakpoint_target[0] = TARGET_AMP;
 
@@ -150,18 +245,22 @@ int main() {
     //e = amy_default_event();
     e.velocity = 0.2;
 
-    // amy.send(osc=0, bp0="1000,0.2,200,0")
-    char bp0msg[] = "v0A0,1,1000,0.01,200,0\0";
-    for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
-        // Don't setup the EG when using FM voices.
-        if (osc_inc == 1 && e.osc < 10) {
-            bp0msg[1] = '0' + e.osc;
-            amy_play_message(bp0msg);
+    if (false) {
+        // amy.send(osc=0, bp0="1000,0.2,200,0")
+        char bp0msg[] = "v0A0,1,1000,0.01,200,0\0";
+        for (int i = 0; i < sizeof(notes) / sizeof(int); ++i) {
+            // Don't setup the EG when using FM voices.
+            if (osc_inc == 1 && e.osc < 10) {
+                bp0msg[1] = '0' + e.osc;
+                amy_play_message(bp0msg);
+            }
+            e.midi_note = notes[i];
+            amy_add_event(e);
+            e.osc += osc_inc;
+            e.time += 500;
         }
-        e.midi_note = notes[i];
-        amy_add_event(e);
-        e.osc += osc_inc;
-        e.time += 500;
+    } else {
+        drums();
     }
 
 /*

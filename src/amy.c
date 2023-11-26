@@ -173,7 +173,7 @@ void add_delta_to_queue(struct delta d) {
 
 
 void amy_add_event(struct event e) {
-    printf("amy_add_event(osc=%d) midi_note=%d\n", e.osc, e.midi_note); 
+    //printf("amy_add_event(osc=%d) midi_note=%d\n", e.osc, e.midi_note); 
     // make delta objects out of the UDP event and add them to the queue
     struct delta d;
     d.osc = e.osc;
@@ -710,7 +710,7 @@ void parse_breakpoint(struct event * e, char* message, uint8_t which_bpset) {
         while(message[c]!=',' && message[c]!=0 && c < MAX_MESSAGE_LEN) c++;
         c++; idx++;
     }
-    print_bpset(e, which_bpset);
+    //print_bpset(e, which_bpset);
 }
 
 // given a string return an event

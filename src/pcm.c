@@ -45,6 +45,8 @@ void pcm_init() {
 #define PCM_INDEX_BITS (31 - PCM_INDEX_FRAC_BITS)
 
 void pcm_note_on(uint8_t osc) {
+    //printf("pcm_note_on: osc=%d patch=%d freq=%f amp=%f\n",
+    //       osc, synth[osc].patch, synth[osc].freq, S2F(synth[osc].amp));
     if(synth[osc].patch < 0) synth[osc].patch = 0;
     const pcm_map_t *patch = &pcm_map[synth[osc].patch];
     // if no freq given, just play it at midinote
@@ -76,7 +78,7 @@ void render_pcm(SAMPLE* buf, uint8_t osc) {
         float base_freq = freq_for_midi_note(patch->midinote); 
         playback_freq = (msynth[osc].freq / base_freq) * PCM_SAMPLE_RATE;
     }
-    PHASOR step = F2P(playback_freq / (float)SAMPLE_RATE / (1 << PCM_INDEX_BITS));
+    PHASOR step = F2P((playback_freq / (float)SAMPLE_RATE) / (float)(1 << PCM_INDEX_BITS));
     const LUTSAMPLE* table = pcm + patch->offset;
     uint32_t base_index = INT_OF_P(synth[osc].phase, PCM_INDEX_BITS);
     for(uint16_t i=0; i < BLOCK_SIZE; i++) {
@@ -102,7 +104,9 @@ void render_pcm(SAMPLE* buf, uint8_t osc) {
         }
         buf[i] += MUL4_SS(msynth[osc].amp, sample);
     }
-}
+    //printf("render_pcm: osc %d patch %d len %d base_ix %d phase %f step %f tablestep %f amp %f\n",
+    //       osc, synth[osc].patch, patch->length, base_index, P2F(synth[osc].phase), P2F(step), (1 << PCM_INDEX_BITS) * P2F(step), S2F(msynth[osc].amp));
+ }
 
 SAMPLE compute_mod_pcm(uint8_t osc) {
     float mod_sr = (float)SAMPLE_RATE / (float)BLOCK_SIZE;

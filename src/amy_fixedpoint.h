@@ -77,8 +77,10 @@ typedef int32_t s8_23;  // s8.23 sample
 #define F2S(f) (SAMPLE)((f) * (float)(1 << S_FRAC_BITS))
 
 // Convert between PHASOR and float
-#define P2F(s) ((float)(s) / (float)(1 << P_FRAC_BITS))
-#define F2P(f) (PHASOR)((f) * (float)(1 << P_FRAC_BITS))
+// 1 << P_FRAC_BITS is 1 << 31 which actually flips to (-2^31).
+// So make the constant one less and do the last power of 2 in float.
+#define P2F(s) ((float)(s) / (2.0 * (float)(1 << (P_FRAC_BITS - 1))))
+#define F2P(f) ((PHASOR)((f) * 2.0 * (float)(1 << (P_FRAC_BITS - 1))))
 
 // Fixed-point multiply routines
 
@@ -97,13 +99,13 @@ typedef int32_t s8_23;  // s8.23 sample
 #define MUL4_SP_S(s, p) FXMUL_TEMPLATE(s, p, 11, 16, P_FRAC_BITS)  // need to lose 31 bits; 11+16=27, so 4 more on result
 
 // Regard PHASOR as index into B-bit table, return integer (floor) index, strip sign bit.
-#define INT_OF_P(P, B) (int32_t)(((uint32_t)((P) << 1) >> (P_FRAC_BITS + 1 - (B))))
+#define INT_OF_P(P, B) (int32_t)((((uint32_t)((P) << 1)) >> (P_FRAC_BITS + 1 - (B))))
 // Fractonal part of phasor within B bits, returns a SAMPLE.
 // Add 1 to B shift-up and cast to uint32_t to strip sign bit, pad a zero sign bit on way down.
 #define S_FRAC_OF_P(P, B) (int32_t)(((uint32_t)(((P) << ((B) + 1)))) >> (1 + P_FRAC_BITS - S_FRAC_BITS))
 
 // Increment phasor but wrap at +1.0
-#define P_WRAPPED_SUM(P, I) (int32_t)(((uint32_t)(((P) + (I)) << 1)) >> 1)
+#define P_WRAPPED_SUM(P, I) (int32_t)(((uint32_t)((((uint32_t)(P)) + ((uint32_t)(I))) << 1)) >> 1)
 
 // Fixed-point lookup table structure (copied from e.g. sine_lutset_fxpt.h).
 #ifndef LUTENTRY_FXPT_DEFINED
