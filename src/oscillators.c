@@ -64,6 +64,9 @@ PHASOR render_lut_fm_osc(SAMPLE* buf,
     //printf("render_fm: phase %f step %f a0 %f a1 %f lut_sz %d mod 0x%lx fb %f l2 0x%lx\n",
     //       P2F(phase), P2F(step), S2F(incoming_amp), S2F(ending_amp), lut->table_size,
     //       mod, S2F(feedback_level), last_two);
+    //if(mod)
+    //    printf("render_fm: i_amp %f mod[:5]= %f %f %f %f %f\n", S2F(incoming_amp),
+    //           S2F(mod[0]), S2F(mod[1]), S2F(mod[2]), S2F(mod[3]), S2F(mod[4]));
     int lut_mask = lut->table_size - 1;
     int lut_bits = lut->log_2_table_size;
     SAMPLE past0 = 0, past1 = 0;
@@ -304,7 +307,7 @@ void render_fm_sine(SAMPLE* buf, uint8_t osc, SAMPLE* mod, SAMPLE feedback_level
 
 /* sine */
 void sine_note_on(uint8_t osc) {
-    printf("sine_note_on: osc %d freq %f\n", osc, synth[osc].freq);
+    //printf("sine_note_on: osc %d freq %f\n", osc, synth[osc].freq);
     // There's really only one sine table, but for symmetry with the other ones...
     float period_samples = (float)SAMPLE_RATE / synth[osc].freq;
     synth[osc].lut = choose_from_lutset(period_samples, sine_fxpt_lutset);

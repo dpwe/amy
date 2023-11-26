@@ -173,7 +173,7 @@ void add_delta_to_queue(struct delta d) {
 
 
 void amy_add_event(struct event e) {
-    printf("amy_add_event(%d) midi_note=%d\n", e.osc, e.midi_note); 
+    printf("amy_add_event(osc=%d) midi_note=%d\n", e.osc, e.midi_note); 
     // make delta objects out of the UDP event and add them to the queue
     struct delta d;
     d.osc = e.osc;

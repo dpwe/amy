@@ -131,7 +131,7 @@ int main() {
     e.osc = 0;
 
     e.wave = ALGO;
-    e.patch = 15;
+    e.patch = 17;
     osc_inc = 9;
     
     //e.wave = SAW_DOWN;
@@ -144,11 +144,11 @@ int main() {
     //e.breakpoint_target[0] = TARGET_AMP;
 
     //int notes[] = {46, 40, 44, 48, 58, 52, 56, 60, 70, 64, 68, 72, 82, 76, 80, 84, 94, 88, 92, 96, 106, 100, 104, 108, 118, 112, 116, 120};
-    int notes[] = {60, 70, 64, 68};
+    int notes[] = {60, 70, 64, 68, 72, 82, 76};
     //int notes[] = {72};
 
     //e = amy_default_event();
-    e.velocity = 0.3;
+    e.velocity = 0.2;
 
     // amy.send(osc=0, bp0="1000,0.2,200,0")
     char bp0msg[] = "v0A0,1,1000,0.01,200,0\0";

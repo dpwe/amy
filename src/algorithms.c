@@ -7,7 +7,7 @@
 typedef struct {
     float freq;
     float freq_ratio;
-    SAMPLE amp;
+    float amp;
     float amp_rate[NUM_ALGO_BPS];
     float amp_time[NUM_ALGO_BPS];
     int8_t lfo_target;
@@ -16,13 +16,13 @@ typedef struct {
 
 typedef struct  {
     uint8_t algo;
-    SAMPLE feedback;
+    float feedback;
     float pitch_rate[NUM_ALGO_BPS];
     uint16_t pitch_time[NUM_ALGO_BPS];
     float lfo_freq;
     int8_t lfo_wave;
-    SAMPLE lfo_amp_amp;
-    SAMPLE lfo_pitch_amp;
+    float lfo_amp_amp;
+    float lfo_pitch_amp;
     operator_parameters_t ops[MAX_ALGO_OPS];
 } algorithms_parameters_t;
 
@@ -162,19 +162,20 @@ void algo_setup_patch(uint8_t osc) {
     float last_release_time= 0;
     float last_release_value = 0;
     for(uint8_t i=0;i<MAX_ALGO_OPS;i++) {
-        synth[osc].algo_source[i] = osc+i+1;
+        int srcosc = osc + i + 1;
+        synth[osc].algo_source[i] = srcosc;
         operator_parameters_t op = p.ops[i];
-        synth[osc+i+1].freq = op.freq;
-        if(synth[osc+i+1].freq < 0) synth[osc+i+1].freq = 0;
-        synth[osc+i+1].status = IS_ALGO_SOURCE;
-        synth[osc+i+1].ratio = op.freq_ratio;
-        synth[osc+i+1].amp = F2S(op.amp);
-        synth[osc+i+1].breakpoint_target[0] = TARGET_AMP+TARGET_DX7_EXPONENTIAL;
-        synth[osc+i+1].phase = 0.25;
-        synth[osc+i+1].mod_target = op.lfo_target;
+        synth[srcosc].freq = op.freq;
+        if(synth[srcosc].freq < 0) synth[srcosc].freq = 0;
+        synth[srcosc].status = IS_ALGO_SOURCE;
+        synth[srcosc].ratio = op.freq_ratio;
+        synth[srcosc].amp = F2S(op.amp);
+        synth[srcosc].breakpoint_target[0] = TARGET_AMP+TARGET_DX7_EXPONENTIAL;
+        synth[srcosc].phase = 0.25;
+        synth[srcosc].mod_target = op.lfo_target;
         for(uint8_t j=0;j<NUM_ALGO_BPS;j++) {
-            synth[osc+i+1].breakpoint_values[0][j] = op.amp_rate[j];
-            synth[osc+i+1].breakpoint_times[0][j] =  ms_to_samples((int)((float)op.amp_time[j]/time_ratio));
+            synth[srcosc].breakpoint_values[0][j] = op.amp_rate[j];
+            synth[srcosc].breakpoint_times[0][j] =  ms_to_samples((int)((float)op.amp_time[j]/time_ratio));
         }
         // Calculate the last release time for the root note's amp BP
         if(op.amp_time[4] > last_release_time) {
@@ -218,7 +219,7 @@ void algo_init() {
 
 
 void render_algo(SAMPLE* buf, uint8_t osc) { 
-    SAMPLE scratch[5][BLOCK_SIZE];
+    SAMPLE scratch[6][BLOCK_SIZE];
 
     struct FmAlgorithm algo = algorithms[synth[osc].algorithm];
 
@@ -227,11 +228,8 @@ void render_algo(SAMPLE* buf, uint8_t osc) {
     SAMPLE* out_buf = NULL;
 
     // TODO, i think i need at most 2 of these buffers, maybe 3?? 
-    zero(scratch[0]);
-    zero(scratch[1]);
-    zero(scratch[2]);
-    zero(scratch[3]);
-    zero(scratch[4]);
+    for (int i = 0; i < 6; ++i)
+        zero(scratch[i]);
     uint8_t ops_used = 0;
     for(uint8_t op=0;op<MAX_ALGO_OPS;op++) {
         if(synth[osc].algo_source[op] >=0 && synth[synth[osc].algo_source[op]].status == IS_ALGO_SOURCE) {
@@ -247,7 +245,7 @@ void render_algo(SAMPLE* buf, uint8_t osc) {
                 in_buf = scratch[1]; 
             } else {
                 // no in_buf
-                in_buf = NULL;
+                in_buf = scratch[5]; // NULL;
             }
 
             if(!(algo.ops[op] & OUT_BUS_ADD)) {
@@ -265,7 +263,6 @@ void render_algo(SAMPLE* buf, uint8_t osc) {
             }
 
             render_mod(in_buf, out_buf, synth[osc].algo_source[op], feedback_level, osc);
-
             if(!(algo.ops[op] & OUT_BUS_ADD)) {
                 if((algo.ops[op] & OUT_BUS_ONE) ) {
                     copy(out_buf, scratch[0]);
@@ -282,8 +279,6 @@ void render_algo(SAMPLE* buf, uint8_t osc) {
                 } else {
                     add(scratch[4], buf);
                 }
-
-
             }
         }
     }
