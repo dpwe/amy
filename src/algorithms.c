@@ -104,7 +104,7 @@ void copy(SAMPLE* a, SAMPLE* b) {
 void render_mod(SAMPLE *in, SAMPLE* out, uint8_t osc, SAMPLE feedback_level, uint8_t algo_osc) {
 
     hold_and_modify(osc);
-    printf("render_mod: osc %d msynth.amp %f\n", osc, S2F(msynth[osc].amp));
+    //printf("render_mod: osc %d msynth.amp %f\n", osc, S2F(msynth[osc].amp));
 
     // out = buf
     // in = mod
@@ -140,7 +140,7 @@ void algo_setup_patch(uint8_t osc) {
     // osc7 = amp lfo, osc8 = pitch lfo
     algorithms_parameters_t p = fm_patches[synth[osc].patch % ALGO_PATCHES];
     synth[osc].algorithm = p.algo;
-    synth[osc].feedback = p.feedback;
+    synth[osc].feedback = F2S(p.feedback);
 
     synth[osc].mod_source = osc+8;
     synth[osc].mod_target = TARGET_FREQ;
