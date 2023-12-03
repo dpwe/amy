@@ -9,6 +9,30 @@ import time
 from dataclasses import dataclass
 from typing import List
 
+
+def to_time(midi):
+  """Convert a midi value (0..127) to a time for ADSR."""
+  # Range is from 1 ms to 10 sec i.e. 1e4
+  return 0.001 * np.exp(np.log(1e4) * midi / 127.0)
+
+
+def to_level(midi):
+  # Range is from 0.001 to 1.0 i.e. 1e3
+  if midi == 0:
+    return 0.0
+  return 0.001 * np.exp(np.log(1e3) * midi / 127.0)
+
+
+def to_lfo(midi):
+  # LFO frequency in Hz varies from 0.1 to 30
+  return 0.1 * np.exp(np.log(300) * midi / 127.0)
+
+
+def to_resonance(midi):
+  # Q goes from 0.1 to 100
+  return 0.1 * np.exp(np.log(1000) * midi / 127.0)
+
+
 @dataclass
 class JunoPatch:
     """Encapsulates information in a Juno Patch."""
@@ -35,8 +59,9 @@ class JunoPatch:
     pulse: bool = False
     triangle: bool = False
     chorus: int = 0
-    pwm_lfo: bool = False
-    vca_env: bool = False
+    pwm_manual: bool = False  # else lfo
+    vca_gate: bool = False  # else env
+    vcf_neg: bool = False  # else pos
     hpf: int = 0
 
     # These lists name the fields in the order they appear in the sysex.
@@ -45,7 +70,7 @@ class JunoPatch:
              'env_a', 'env_d', 'env_s', 'env_r', 'dco_sub']
     # After the 16 integer values, there are two bytes of bits.
     BITS1 = ['stop_16', 'stop_8', 'stop_4', 'pulse', 'triangle']
-    BITS2 = ['pwm_lfo', 'vca_env', 'vcf_pos']
+    BITS2 = ['pwm_manual', 'vcf_neg', 'vca_gate']
     
     @staticmethod
     def from_patch_number(patch_number):
@@ -69,3 +94,65 @@ class JunoPatch:
             setattr(result, field, (int(sysexbytes[17]) & (1 << index)) > 0)
         setattr(result, 'hpf', int(sysexbytes[17]) >> 3)
         return result
+
+    def _breakpoint_string(self, peak_val):
+      """Format a breakpoint string from the ADSR parameters reaching a peak."""
+      return "0,0,%d,%f,%d,%f,%d,0" % (
+        to_time(self.env_a), peak_val, to_time(self.env_d),
+        peak_val * to_level(self.env_s), to_time(self.env_r)
+      )
+  
+    def send_to_AMY(self):
+      """Output AMY commands to set up the patch.
+      Send amy.send(vel=0,osc=6,note=50) afterwards."""
+      amy.reset()
+      # osc 0 is main osc (pwm/triangle)
+      #   env0 is VCA
+      #   env1 is VCF
+      # osc 1 is LFO
+      #   LFO can hit PWM or pitch (or VCF) but we can't scale separately for each.
+      # osc 2 is the sub-oscillator (square) or noise?  Do we need both?
+      vca_level = to_level(self.vca_level)
+      if self.vca_env:
+        vca_env_bp = self._breakpoint_string(vca_level)
+      else:
+        # VCA is just a gate
+        vca_env_bp = "0,%f,0,0" % vca_level
+      vcf_env_bp = self._breakpoint_string(to_level(self.vcf_env))
+      osc0_args = {"osc": 0,
+                   "bp0_target": amy.TARGET_AMP, "bp0": vca_env_bp,
+                   "bp1_target": amy.TARGET_FILTER_FREQ, "bp1": vcf_env_bp}
+      wave = amy.PULSE
+      if self.triangle:
+        wave = amy.SAW_UP
+      osc0_args.update({"wave": wave})
+      # Base VCF
+      osc0_args.update({"filter_freq": to_filter_freq(self.vcf_freq),
+                        "resonance": to_resonance(self.resonance)})
+      
+      lfo_args = {}
+      pwm_lfo = 0 if self.pwm_manual else self.dco_pwm
+      lfo_amp = np.max(self.dco_lfo, self.vcf_lfo, pwm_lfo)
+      if lfo_amp:
+        lfo_target = 0
+        if self.dco_lfo > lfo_amp / 2:
+          lfo_target |= amy.TARGET_FREQ
+        if self.vcf_lfo > lfo_amp / 2:
+          lfo_target |= amy.TARGET_FILTER_FREQ
+        if pwm_lfo > lfo_amp / 2:
+          lfo_target |= amy.TARGET_DUTY
+        lfo_env_bp = "0,0,%d,%f,%d,0" % (
+          to_time(self.lfo_delay_time), to_level(lfo_target), to_time(self.env_r)
+        )
+        osc0_args.update({"mod_source": 1, "mod_target": lfo_target})
+        lfo_args = {'osc': 1, 'bp0_target': amy.TARGET_AMP, 'bp0': lfo_env_bp,
+                    'wave': TRIANGLE, 'freq': to_lfo(self.lfo_rate)}
+                                           
+      # Sub-harmonic and noise oscillators have the same VCA, VCF, and LFO params as main osc.
+      # ...
+
+      # Send it all out.
+      amy.send(**osc0_args)
+      if lfo_args:
+        amy.send(**lfo_args)
+    
