@@ -12,8 +12,11 @@ from typing import List
 
 def to_time(midi):
   """Convert a midi value (0..127) to a time for ADSR."""
-  # Range is from 1 ms to 10 sec i.e. 1e4
-  return 0.001 * np.exp(np.log(1e4) * midi / 127.0)
+  # Range is from 10 ms to 10 sec i.e. 1e3. Return int value in ms
+  #time = 0.01 * np.exp(np.log(1e3) * midi / 127.0)
+  # midi 50 is ~ 1 sec
+  time = 0.01 * np.exp(np.log(1e2) * midi / 50.0)
+  return int(1000.0 * time)
 
 
 def to_level(midi):
@@ -31,6 +34,11 @@ def to_lfo(midi):
 def to_resonance(midi):
   # Q goes from 0.1 to 100
   return 0.1 * np.exp(np.log(1000) * midi / 127.0)
+
+
+def to_filter_freq(midi):
+  # filter_freq goes from ? 100 to 6400 Hz with 18 steps/octave
+  return 100 * np.exp(np.log(2) * midi / 20.0)
 
 
 @dataclass
@@ -113,12 +121,13 @@ class JunoPatch:
       #   LFO can hit PWM or pitch (or VCF) but we can't scale separately for each.
       # osc 2 is the sub-oscillator (square) or noise?  Do we need both?
       vca_level = to_level(self.vca_level)
-      if self.vca_env:
-        vca_env_bp = self._breakpoint_string(vca_level)
-      else:
+      if self.vca_gate:
         # VCA is just a gate
         vca_env_bp = "0,%f,0,0" % vca_level
-      vcf_env_bp = self._breakpoint_string(to_level(self.vcf_env))
+      else:
+        vca_env_bp = self._breakpoint_string(vca_level)
+      vcf_env_polarity = -1.0 if self.vcf_neg else 1.0
+      vcf_env_bp = self._breakpoint_string(to_level(vcf_env_polarity * self.vcf_env))
       osc0_args = {"osc": 0,
                    "bp0_target": amy.TARGET_AMP, "bp0": vca_env_bp,
                    "bp1_target": amy.TARGET_FILTER_FREQ, "bp1": vcf_env_bp}
@@ -128,11 +137,12 @@ class JunoPatch:
       osc0_args.update({"wave": wave})
       # Base VCF
       osc0_args.update({"filter_freq": to_filter_freq(self.vcf_freq),
-                        "resonance": to_resonance(self.resonance)})
+                        "filter_type": amy.FILTER_LPF,
+                        "resonance": to_resonance(self.vcf_res)})
       
       lfo_args = {}
       pwm_lfo = 0 if self.pwm_manual else self.dco_pwm
-      lfo_amp = np.max(self.dco_lfo, self.vcf_lfo, pwm_lfo)
+      lfo_amp = np.max(np.array([self.dco_lfo, self.vcf_lfo, pwm_lfo]))
       if lfo_amp:
         lfo_target = 0
         if self.dco_lfo > lfo_amp / 2:
@@ -152,7 +162,16 @@ class JunoPatch:
       # ...
 
       # Send it all out.
+      print(osc0_args, lfo_args)
       amy.send(**osc0_args)
       if lfo_args:
         amy.send(**lfo_args)
-    
+
+# To do:
+#  - make the filter env be filter_freq * (1 + filter ADSR)
+#    - undo the (1 - env) output for negative envs
+#  - filter ADSR scaling needs to be stretched.  Brass sysex has vcf_freq = 35 (-> 356 Hz) vcf_env = 58 (-> 0.023), actual frequency should be ~3000 to 600
+#    so vcf_env 58 should be 2-3 octaves
+#    and vcf_freq 35 should be ~600 Hz (midi 35 is 62 Hz, so we need a narrower range, e.g. 24 steps/oct, so entire 127 range is 5 octaves = 32x = 100 to 3200 Hz - too small
+#    vcf needs to cover 50 to 8000 Hz, so 160x or 7+ octaves, 18 steps/octave
+#  VCF ADSR wants to be added to VCF base_freq before exponentiation.. convert freq repn to logf internally
