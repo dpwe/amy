@@ -3,12 +3,12 @@
 
 #include "amy.h"
 
-extern struct event* synth;
+extern struct i_event* synth;
 extern struct mod_event* msynth;
 extern struct mod_state mglobal;
 
 
-SAMPLE compute_mod_value(uint8_t mod_osc) {
+SAMPLE compute_mod_value(uint16_t mod_osc) {
     // Return the modulation-rate value for the specified oscillator.
     // i.e., this oscillator is acting as modulation for something, so
     // just calculate that modulation rate (without knowing what it
@@ -23,8 +23,8 @@ SAMPLE compute_mod_value(uint8_t mod_osc) {
     return 0;
 }
 
-SAMPLE compute_mod_scale(uint8_t osc) {
-    int8_t source = synth[osc].mod_source;
+SAMPLE compute_mod_scale(uint16_t osc) {
+    int16_t source = synth[osc].mod_source;
     if(synth[osc].mod_target >= 1 && source >= 0) {
         if(source != osc) {  // that would be weird
             msynth[source].amp = synth[source].amp;
@@ -39,7 +39,7 @@ SAMPLE compute_mod_scale(uint8_t osc) {
     return 0; // 0 is no change, unlike bp scale
 }
 
-SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
+SAMPLE compute_breakpoint_scale(uint16_t osc, uint8_t bp_set) {
 
     // given a breakpoint list, compute the scale
     // we first see how many BPs are defined, and where we are in them?
@@ -125,8 +125,14 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
         t0 = synth[osc].breakpoint_times[bp_set][found-1];
         v0 = F2S(synth[osc].breakpoint_values[bp_set][found-1]);
     }
+    //printf("found %d bp_r %d release %d v0 %f\n", found, bp_r, release, S2F(v0));
     SAMPLE scale = v0;
-    if(t1 < 0 || v1 < 0) {
+    int sign = 1;
+    if (v0 < 0 || v1 < 0) {
+        sign = -1;
+        v0 = -v0; v1 = -v1;
+    }
+    if(t1 < 0) { // || v1 < 0) {
         scale = 0;
     } else if(t1==t0 || elapsed==t1) {
         // This way we return exact zero for v1 at the end of the segment, rather than BREAKPOINT_EPS
@@ -169,6 +175,10 @@ SAMPLE compute_breakpoint_scale(uint8_t osc, uint8_t bp_set) {
             //scale = v0 - MUL4_SS(v0 - v1, F2S(scf));
             //printf("false_exponential time_ratio %f scf %f\n", time_ratio, scf);
         }
+    }
+    // If sign is negative, render the env as 1 - ADSR.
+    if (sign < 0) {
+        scale = F2S(1.0f) - scale;
     }
     // Keep track of the most-recently returned non-release scale.
     if (!release) synth[osc].last_scale[bp_set] = scale;
