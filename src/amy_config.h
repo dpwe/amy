@@ -3,7 +3,7 @@
 */
 
 // # of simultaneous oscs to keep track of 
-#define AMY_OSCS 108
+#define AMY_OSCS 64
 
 // If using a multi-core capable device, how many cores to render from
 #ifdef PICO_ON_DEVICE
@@ -17,21 +17,33 @@
 // 1 == small PCM, 2 == large PCM samples stored in the program
 #ifdef PICO_ON_DEVICE
 #define AMY_PCM_PATCHES_SIZE 1   
-#elif ESP_PLATFORM
+#elif ALLES
 #define AMY_PCM_PATCHES_SIZE 2
+#elif TULIP
+#define AMY_PCM_PATCHES_SIZE 1
 #else
 #define AMY_PCM_PATCHES_SIZE 2
 #endif
 
+
 #define AMY_EVENT_FIFO_LEN 1000  // number of events the queue can store
 #define AMY_MAX_DRIFT_MS 20000   // ms of time you can schedule ahead before synth recomputes time base
 #define AMY_SAMPLE_RATE 44100    // playback sample rate
+#ifdef ALLES
+#define AMY_NCHANS 1             // 1 = mono output, 'Q' (pan) ignored. 2 = Enable 2-channel output, pan, etc.
+#else
 #define AMY_NCHANS 2             // 1 = mono output, 'Q' (pan) ignored. 2 = Enable 2-channel output, pan, etc.
+#endif
 
 #define AMY_KS_OSCS 1            // How many karplus-strong oscillators to keep track of (0 disables KS)
 
+#ifdef ALLES
+#define AMY_HAS_CHORUS 0        // 1 = Make chorus available (uses RAM)
+#define AMY_HAS_REVERB 0         // 1 = Make reverb available (uses RAM)
+#else
 #define AMY_HAS_CHORUS 1         // 1 = Make chorus available (uses RAM)
 #define AMY_HAS_REVERB 1         // 1 = Make reverb available (uses RAM)
+#endif
 
 // TODO -- partials in FXP
 #define AMY_HAS_PARTIALS 1       // 1 = Make partials available
@@ -39,12 +51,21 @@
 //If using an ESP, tell us how to allocate ram here. Not used on other platforms.
 #ifdef ESP_PLATFORM
 #include <esp_heap_caps.h>
+#ifdef TULIP
 #define EVENTS_RAM_CAPS MALLOC_CAP_SPIRAM
 #define SYNTH_RAM_CAPS MALLOC_CAP_SPIRAM
 #define BLOCK_RAM_CAPS MALLOC_CAP_INTERNAL
 #define FBL_RAM_CAPS MALLOC_CAP_INTERNAL
 #define CHORUS_RAM_CAPS MALLOC_CAP_SPIRAM 
 #define REVERB_RAM_CAPS MALLOC_CAP_SPIRAM 
+#else
+#define EVENTS_RAM_CAPS MALLOC_CAP_DEFAULT
+#define SYNTH_RAM_CAPS MALLOC_CAP_DEFAULT
+#define BLOCK_RAM_CAPS MALLOC_CAP_DEFAULT
+#define FBL_RAM_CAPS MALLOC_CAP_DEFAULT
+#define CHORUS_RAM_CAPS MALLOC_CAP_DEFAULT
+#define REVERB_RAM_CAPS MALLOC_CAP_DEFAULT
+#endif
 #else
 #define EVENTS_RAM_CAPS 0
 #define SYNTH_RAM_CAPS 0
