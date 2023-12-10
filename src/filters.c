@@ -44,9 +44,6 @@ int8_t dsps_biquad_gen_lpf_f32(SAMPLE *coeffs, float f, float qFactor)
     coeffs[3] = F2S(a1 / a0);
     coeffs[4] = F2S(a2 / a0);
 
-    //printf("lpf f=%f q=%f b0 %f b1 %f b2 %f a1 %f a2 %f\n", f, qFactor,
-    //       S2F(coeffs[0]), S2F(coeffs[1]), S2F(coeffs[2]), S2F(coeffs[3]), S2F(coeffs[4]));
-
     return 0;
 }
 
@@ -160,6 +157,10 @@ void filter_process(SAMPLE * block, uint16_t osc) {
     for(uint16_t i=0;i<AMY_BLOCK_SIZE;i++) {
         block[i] = output[i];
     }
+    printf("filt f=%f q=%f b0 %f b1 %f b2 %f a1 %f a2 %f vals= %f %f %f %f .. %f %f %f %f\n", msynth[osc].filter_freq, msynth[osc].resonance,
+           S2F(coeffs[osc][0]), S2F(coeffs[osc][1]), S2F(coeffs[osc][2]), S2F(coeffs[osc][3]), S2F(coeffs[osc][4]),
+           S2F(block[0]), S2F(block[1]), S2F(block[2]), S2F(block[3]), S2F(block[AMY_BLOCK_SIZE - 3]), S2F(block[AMY_BLOCK_SIZE - 3]), S2F(block[AMY_BLOCK_SIZE - 2]), S2F(block[AMY_BLOCK_SIZE - 1]));
+
 }
 
 void filters_deinit() {

@@ -780,7 +780,7 @@ void hold_and_modify(uint16_t osc) {
         if(synth[osc].breakpoint_target[i] & TARGET_DUTY) msynth[osc].duty = msynth[osc].duty * S2F(scale);
         if(synth[osc].breakpoint_target[i] & TARGET_FREQ) msynth[osc].freq = msynth[osc].freq * S2F(scale);
         if(synth[osc].breakpoint_target[i] & TARGET_FEEDBACK) msynth[osc].feedback = MUL4_SS(msynth[osc].feedback, scale);
-        if(synth[osc].breakpoint_target[i] & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq * S2F(scale);
+        if(synth[osc].breakpoint_target[i] & TARGET_FILTER_FREQ) msynth[osc].filter_freq = msynth[osc].filter_freq * (1.0f + S2F(scale));
         if(synth[osc].breakpoint_target[i] & TARGET_RESONANCE) msynth[osc].resonance = msynth[osc].resonance * S2F(scale);
         all_set_scale = all_set_scale + scale;
     }

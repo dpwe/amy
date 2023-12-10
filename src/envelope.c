@@ -49,7 +49,8 @@ SAMPLE compute_breakpoint_scale(uint16_t osc, uint8_t bp_set) {
     SAMPLE v1, v0;
     int8_t bp_r = 0;
     t0 = 0; v0 = 1.0;
-    SAMPLE exponential_rate = 3.0;
+    const float exponential_rate = 3.0;
+    const float exponential_rate_overshoot_factor = 1.0f / (1.0f - expf(-exponential_rate));
     int64_t elapsed = 0;    
 
     // Find out which one is release (the last one)
@@ -170,7 +171,9 @@ SAMPLE compute_breakpoint_scale(uint16_t osc, uint8_t bp_set) {
                 scale = MUL4_SS(v0, F2S(expf(-dx7_exponential_rate * (elapsed - t0))));
             }
         } else { // "false exponential?"
-            scale = v0 + MUL4_SS(v1 - v0, F2S(1.0 - expf(-exponential_rate * time_ratio)));
+            // After the full amount of time, the exponential decay will reach (1 - expf(-3)) = 0.95
+            // so make the target gap a little bit bigger, to ensure we meet v1
+            scale = v0 + MUL4_SS(v1 - v0, F2S(exponential_rate_overshoot_factor * (1.0 - expf(-exponential_rate * time_ratio))));
             //float scf = 1.0 - expf(-exponential_rate * time_ratio);
             //scale = v0 - MUL4_SS(v0 - v1, F2S(scf));
             //printf("false_exponential time_ratio %f scf %f\n", time_ratio, scf);
@@ -182,7 +185,7 @@ SAMPLE compute_breakpoint_scale(uint16_t osc, uint8_t bp_set) {
     }
     // Keep track of the most-recently returned non-release scale.
     if (!release) synth[osc].last_scale[bp_set] = scale;
-    //printf("t0 %d t1 %d elapsed %lld v0 %f v1 %f scale %f\n", t0, t1, elapsed, S2F(v0), S2F(v1), S2F(scale));
+    //printf("t0 %d t1 %d elapsed %lld v0 %f v1 %f scale %f erof %f\n", t0, t1, elapsed, S2F(v0), S2F(v1), S2F(scale), exponential_rate_overshoot_factor);
     return scale;
 }
 
