@@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
     //example_reverb();
     //example_chorus();
     example_drums(start, 2);
-    //example_multimbral_fm(start);
+    example_multimbral_fm(start + 3000);
 
     // Now just spin for 20s
     while(amy_sysclock() - start < 20000) {

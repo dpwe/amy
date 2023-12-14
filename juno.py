@@ -177,10 +177,10 @@ class JunoPatch:
         vca_env_bp = self._breakpoint_string(vca_level)
       vcf_env_polarity = -1.0 if self.vcf_neg else 1.0
       # Juno interprets VCF env is as over and above filter_freq, where 1.0 = many octaves above
-      # AMY interprents VCF env as scaling filter_freq
+      # AMY *now* interprents VCF env as filter_freq * (1 + env)
       # Set filter_freq so that vcf env peak is 64x for 1.0
-      filter_freq = to_filter_freq(self.vcf_freq) * np.exp(to_level(self.vcf_env) * np.log(64.0))
-      vcf_env_bp = self._breakpoint_string(to_level(vcf_env_polarity * self.vcf_env))
+      filter_freq = to_filter_freq(self.vcf_freq)
+      vcf_env_bp = self._breakpoint_string(vcf_env_polarity * (2.0 ** (6.0 * to_level(self.vcf_env))))
       osc0_args = {"osc": 0,
                    "bp0_target": amy.TARGET_AMP, "bp0": vca_env_bp,
                    "bp1_target": amy.TARGET_FILTER_FREQ, "bp1": vcf_env_bp}

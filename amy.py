@@ -298,24 +298,30 @@ def drums(bpm=120, loops=-1, volume=0.2, **kwargs):
     [bass, snare, hat, cow, hicow, silent] = [1, 2, 4, 8, 16, 32]
     pattern = [bass+hat, hat+hicow, bass+hat+snare, hat+cow, hat, hat+bass, snare+hat, hat]
     bassline = [50, 0, 0, 0, 50, 52, 51, 0]
+
+    timestamp = millis()
     while (loops != 0):
         loops = loops - 1
         for i,x in enumerate(pattern):
             if(x & bass): 
-                send(osc=0, vel=4*volume, **kwargs)
+                send(timestamp=timestamp, osc=0, vel=4*volume, **kwargs)
             if(x & snare):
-                send(osc=2, vel=1.5*volume)
+                send(timestamp=timestamp, osc=2, vel=1.5*volume)
             if(x & hat): 
-                send(osc=3, vel=1*volume)
+                #send(timestamp=timestamp, osc=3, vel=1*volume)
+                pass
             if(x & cow): 
-                send(osc=4, vel=1*volume)
+                send(timestamp=timestamp, osc=4, vel=1*volume)
             if(x & hicow): 
-                send(osc=5, vel=1*volume)
+                send(timestamp=timestamp, osc=5, vel=1*volume)
             if(bassline[i]>0):
-                send(osc=7, vel=0.5*volume, note=bassline[i]-12, **kwargs)
+                #send(timestamp=timestamp, osc=7, vel=0.5*volume, note=bassline[i]-12, **kwargs)
+                pass
             else:
-                send(vel=0, osc=7, **kwargs)
-            time.sleep(1.0/(bpm*2/60))
+                send(timestamp=timestamp, vel=0, osc=7, **kwargs)
+            timestamp += int(1000/(bpm * 2 / 60))
+            if loops < 0:
+                time.sleep(1.0/(bpm*2/60))
 
 
 """

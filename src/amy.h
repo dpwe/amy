@@ -28,6 +28,14 @@ typedef int16_t output_sample_type;
 #define UP    32767
 #define DOWN -32768
 
+// For lists of coefficients controlling voice parameters
+// as linear combinations of a fixed set of control inputs.
+// Currently: Const(1.0), Note pitch, Note vel, Env 1, Env 2, LFO Mod
+#define NUM_CONTROL_INPUTS 6
+// These linear functions are defined for:
+// osc frequency (freq), osc amplitude (amp), pwm duty (duty),
+// vcf cutoff freq (filter_freq), pan (pan)
+
 // modulation/breakpoint target mask (int16)
 #define TARGET_AMP 1
 #define TARGET_DUTY 2
@@ -153,9 +161,9 @@ struct i_event {
     int16_t wave;
     int16_t patch;
     int16_t midi_note;
-    SAMPLE amp;
+    float amp;
     float duty;
-    SAMPLE feedback;
+    float feedback;
     float freq;
     uint8_t status;
     float velocity;
@@ -202,14 +210,14 @@ struct i_event {
 
 // events, but only the things that mods/env can change. one per osc
 struct mod_event {
-    SAMPLE amp;
+    float amp;
     float pan;
     float last_pan;   // Pan history for interpolation.
     float duty;
     float freq;
     float filter_freq;
     float resonance;
-    SAMPLE feedback;
+    float feedback;
 };
 
 // Callbacks, override if you'd like after calling amy_start()
@@ -253,10 +261,11 @@ extern struct i_event *synth;
 extern struct mod_event *msynth; // the synth that is being modified by modulations & envelopes
 extern struct state global; 
 
+float atoff(const char *s);
 
 int8_t oscs_init();
 void parse_breakpoint(struct i_event * e, char* message, uint8_t bp_set) ;
-void parse_algorithm(struct i_event * e, char* message) ;
+void parse_algorithm_source(struct i_event * e, char* message) ;
 void hold_and_modify(uint16_t osc) ;
 int16_t * fill_audio_buffer_task();
 int32_t ms_to_samples(int32_t ms) ;
